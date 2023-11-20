@@ -1,6 +1,6 @@
 use std::env;
 
-use reqwest;
+
 
 fn get_api_key() -> Result<String, env::VarError> {
     match env::var("MANIFOLD_KEY") {
