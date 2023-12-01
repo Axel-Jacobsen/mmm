@@ -9,10 +9,26 @@ enum MarketOutcome {
     NO,
 }
 
-#[allow(dead_code)]
-#[derive(Deserialize, Debug)]
-pub struct UserList {
-    users: Vec<User>,
+#[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq)]
+enum MarketMechanism {
+    #[serde(rename = "cpmm-1")]
+    Cpmm,
+    #[serde(rename = "dpm-2")]
+    Dpm,
+}
+
+#[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq)]
+enum MarketOutcomeType {
+    #[serde(rename = "BINARY")]
+    Binary,
+    #[serde(rename = "FREE_RESPONSE")]
+    FreeResponse,
+    #[serde(rename = "MULTI_CHOICE")]
+    MultipleChoice,
+    #[serde(rename = "NUMERIC")]
+    Numeric,
+    #[serde(rename = "PSEUDO_NUMERIC")]
+    PseudoNumeric,
 }
 
 #[allow(dead_code)]
@@ -52,11 +68,6 @@ pub struct User {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct MarketList {
-    pub markets: Vec<Market>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
 pub struct Market {
     /// from <https://docs.manifold.markets/api#get-v0markets>
 
@@ -93,10 +104,10 @@ pub struct Market {
 
     #[serde(rename = "outcomeType")]
     /// BINARY, FREE_RESPONSE, MULTIPLE_CHOICE, NUMERIC, or PSEUDO_NUMERIC
-    outcome_type: String,
+    outcome_type: MarketOutcomeType,
 
     /// dpm-2 or cpmm-1
-    mechanism: String,
+    mechanism: MarketMechanism,
 
     /// current probability of the market
     probability: f64,
