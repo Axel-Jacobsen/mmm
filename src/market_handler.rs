@@ -21,7 +21,6 @@ fn get_env_key(key: &str) -> Result<String, String> {
 pub struct MarketHandler {
     api_key: String,
     api_url: String,
-    endpoints: Vec<String>,
 
     api_read_limit_per_s: u32,
     api_write_limit_per_min: u32,
@@ -29,12 +28,11 @@ pub struct MarketHandler {
 
 #[allow(dead_code)]
 impl MarketHandler {
-    pub fn new(endpoints: Vec<String>) -> Self {
+    pub fn new() -> Self {
         let api_key = get_env_key("MANIFOLD_KEY").unwrap();
 
         Self {
             api_key,
-            endpoints,
             api_url: String::from("https://api.manifold.markets"),
             api_read_limit_per_s: 100,
             api_write_limit_per_min: 10,
@@ -78,9 +76,9 @@ impl MarketHandler {
         resp.json::<Vec<manifold_types::Market>>().unwrap()
     }
 
-    pub fn run(&self) {
+    pub fn run(&self, endpoints: Vec<String>) {
         loop {
-            for endpoint in &self.endpoints {
+            for endpoint in &endpoints {
                 self.read_sleep();
 
                 let resp = self

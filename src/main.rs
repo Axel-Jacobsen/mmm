@@ -1,7 +1,7 @@
 mod market_handler;
 
 fn main() -> Result<(), reqwest::Error> {
-    let market_handler = market_handler::MarketHandler::new(vec![String::from("bets")]);
+    let market_handler = market_handler::MarketHandler::new();
     println!(
         "{:?}",
         market_handler.market_search(
