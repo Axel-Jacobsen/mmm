@@ -20,9 +20,10 @@ fn get_env_key(key: &str) -> Result<String, String> {
 }
 
 #[allow(dead_code)]
+#[derive(Debug)]
 pub struct ApiEndpoint<'a, T>
 where
-    T: DeserializeOwned,
+    T: DeserializeOwned + std::fmt::Debug,
 {
     endpoint: String,
     query_params: Vec<(&'a str, &'a str)>,
@@ -32,7 +33,7 @@ where
 #[allow(dead_code)]
 impl<'a, T> ApiEndpoint<'a, T>
 where
-    T: DeserializeOwned,
+    T: DeserializeOwned + std::fmt::Debug,
 {
     pub fn new(
         endpoint: String,
@@ -62,15 +63,20 @@ where
 
 #[allow(dead_code)]
 #[derive(Debug)]
-pub struct MarketHandler {
+pub struct MarketHandler<T> {
     api_key: String,
     api_url: String,
     api_read_limit_per_s: u32,
     api_write_limit_per_min: u32,
+    _response_type: PhantomData<T>,
 }
 
 #[allow(dead_code)]
-impl MarketHandler {
+impl<T> MarketHandler<T>
+where
+    T: DeserializeOwned + std::fmt::Debug,
+{
+
     pub fn new() -> Self {
         let api_key = get_env_key("MANIFOLD_KEY").unwrap();
 
@@ -79,6 +85,7 @@ impl MarketHandler {
             api_url: String::from("https://api.manifold.markets"),
             api_read_limit_per_s: 100,
             api_write_limit_per_min: 10,
+            _response_type: PhantomData,
         }
     }
 
@@ -126,7 +133,7 @@ impl MarketHandler {
 
                 match endpoint.hit() {
                     Ok(resp) => println!("{:?}", resp),
-                    Err(e) => println!("endpoint {endpoint} failed {:?}", e),
+                    Err(e) => println!("endpoint {:?} failed {:?}", endpoint,e),
                 }
             }
         }
