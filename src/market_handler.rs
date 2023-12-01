@@ -6,6 +6,9 @@
 use std::env;
 use std::thread::sleep;
 use std::time::Duration;
+use std::marker::PhantomData;
+
+use serde::de::DeserializeOwned;
 
 mod manifold_types;
 
@@ -17,11 +20,42 @@ fn get_env_key(key: &str) -> Result<String, String> {
 }
 
 #[allow(dead_code)]
+pub struct ApiEndpoint<'a, T>
+{
+    endpoint: String,
+    query_params: Vec<(&'a str, &'a str)>,
+    response_type: manifold_types::ManifoldType,
+}
+
+#[allow(dead_code)]
+impl<'a> ApiEndpoint<'a T>
+    pub fn new(endpoint: String, query_params: Vec<(&'a str, &'a str)>, response_type: manifold_types::ManifoldType) -> Self {
+        Self {
+            endpoint,
+            query_params,
+            response_type: response_type,
+        }
+    }
+
+    pub fn hit(&self) -> Result<T, reqwest::Error> {
+        let client = reqwest::blocking::Client::new();
+
+        let req = client
+            .get(format!("https://manifold.markets/api/v0/{}", self.endpoint))
+            .query(&self.query_params)
+            .header("Authorization", get_env_key("MANIFOLD_KEY").unwrap());
+
+        let resp = req.send().unwrap();
+
+        resp.json::<T>()
+    }
+}
+
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct MarketHandler {
     api_key: String,
     api_url: String,
-
     api_read_limit_per_s: u32,
     api_write_limit_per_min: u32,
 }
@@ -76,19 +110,14 @@ impl MarketHandler {
         resp.json::<Vec<manifold_types::Market>>().unwrap()
     }
 
-    pub fn run(&self, endpoints: Vec<String>) {
+    pub fn run(&self, endpoints: Vec<ApiEndpoint>) {
         loop {
             for endpoint in &endpoints {
                 self.read_sleep();
 
-                let resp = self
-                    .get_endpoint(endpoint.to_string(), &[("limit", "1")])
-                    .unwrap();
-
-                if resp.status().is_success() {
-                    println!("{}", resp.text().unwrap());
-                } else {
-                    println!("endpoint {endpoint} failed {:?}", resp);
+                match endpoint.hit() {
+                    Ok(resp) => println!("{:?}", resp),
+                    Err(e) => println!("endpoint {endpoint} failed {:?}", e),
                 }
             }
         }
@@ -103,17 +132,5 @@ mod tests {
     fn build_a_market() {
         let market_handler = MarketHandler::new(vec![String::from("bets")]);
         assert!(market_handler.check_alive());
-    }
-
-    #[test]
-    fn search_for_market() {
-        let market_handler = MarketHandler::new(vec![String::from("bets")]);
-        println!(
-            "{:?}",
-            market_handler.market_search(
-                "(M1000 subsidy) Will GPT-4 solve any freshly-generated Sudoku puzzle? (2023)"
-                    .to_string()
-            )
-        );
     }
 }
