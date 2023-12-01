@@ -56,18 +56,26 @@ impl MarketHandler {
         req.send()
     }
 
-    pub fn check_alive(&self) -> bool {
-        let resp = self.get_endpoint(String::from("me"), &[]).unwrap();
-
-        resp.json::<manifold_types::LiteUser>().is_ok()
-    }
-
     fn read_sleep(&self) {
         sleep(Duration::from_secs(1) / self.api_read_limit_per_s);
     }
 
     fn write_sleep(&self) {
         sleep(Duration::from_secs(1) / self.api_write_limit_per_min);
+    }
+
+    pub fn check_alive(&self) -> bool {
+        let resp = self.get_endpoint(String::from("me"), &[]).unwrap();
+
+        resp.json::<manifold_types::User>().is_ok()
+    }
+
+    pub fn market_search(&self, term: String) -> Vec<manifold_types::Market> {
+        let resp = self
+            .get_endpoint(String::from("search-markets"), &[("term", term.as_str())])
+            .unwrap();
+
+        resp.json::<Vec<manifold_types::Market>>().unwrap()
     }
 
     pub fn run(&self) {
@@ -94,8 +102,14 @@ mod tests {
     use crate::market_handler::MarketHandler;
 
     #[test]
-    fn build_a_market_0() {
+    fn build_a_market() {
         let market_handler = MarketHandler::new(vec![String::from("bets")]);
         assert!(market_handler.check_alive());
+    }
+
+    #[test]
+    fn search_for_market() {
+        let market_handler = MarketHandler::new(vec![String::from("bets")]);
+        println!("{:?}", market_handler.market_search("(M1000 subsidy) Will GPT-4 solve any freshly-generated Sudoku puzzle? (2023)".to_string()));
     }
 }
