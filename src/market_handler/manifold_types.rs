@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 
 
 #[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq)]
-#[serde(untagged, rename_all = "UPPERCASE")]
 enum MarketOutcome {
     YES,
     NO,
@@ -104,7 +103,7 @@ pub struct Market {
 
     /// For CPMM markets, the number of shares in the liquidity pool. For DPM markets,
     /// the amount of mana invested in each answer.
-    pool: HashMap<String, f64>,
+    pool: HashMap<MarketOutcome, f64>,
 
     /// CPMM markets only, probability constant in y^p * n^(1-p) = k
     p: Option<f64>,
