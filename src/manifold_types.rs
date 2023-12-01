@@ -24,7 +24,6 @@ pub struct LiteUser {
 
     bio: Option<String>,
     #[serde(rename = "bannerUrl")]
-
     banner_url: Option<String>,
     website: Option<String>,
 
