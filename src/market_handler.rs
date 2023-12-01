@@ -139,7 +139,7 @@ mod tests {
 
     #[test]
     fn build_a_market() {
-        let market_handler = MarketHandler::new(vec![String::from("bets")]);
+        let market_handler = MarketHandler::new();
         assert!(market_handler.check_alive());
     }
 }
