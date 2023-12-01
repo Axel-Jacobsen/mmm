@@ -140,11 +140,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::market_handler::MarketHandler;
+    use crate::market_handler;
 
     #[test]
     fn build_a_market() {
-        let market_handler = MarketHandler::new();
+        let market_handler =
+            market_handler::MarketHandler::<market_handler::manifold_types::Market>::new();
         assert!(market_handler.check_alive());
     }
 }
