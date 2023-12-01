@@ -163,8 +163,3 @@ pub struct Market {
     #[serde(rename = "lastBetTime")]
     last_bet_time: Option<f64>,
 }
-
-pub enum ManifoldType {
-    Market(Market),
-    User(User),
-}

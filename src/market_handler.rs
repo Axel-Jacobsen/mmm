@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use serde::de::DeserializeOwned;
 
-mod manifold_types;
+pub mod manifold_types;
 
 fn get_env_key(key: &str) -> Result<String, String> {
     match env::var(key) {
@@ -38,7 +38,6 @@ where
     pub fn new(
         endpoint: String,
         query_params: Vec<(&'a str, &'a str)>,
-        response_type: manifold_types::ManifoldType,
     ) -> Self {
         Self {
             endpoint,
@@ -76,7 +75,6 @@ impl<T> MarketHandler<T>
 where
     T: DeserializeOwned + std::fmt::Debug,
 {
-
     pub fn new() -> Self {
         let api_key = get_env_key("MANIFOLD_KEY").unwrap();
 
@@ -133,7 +131,7 @@ where
 
                 match endpoint.hit() {
                     Ok(resp) => println!("{:?}", resp),
-                    Err(e) => println!("endpoint {:?} failed {:?}", endpoint,e),
+                    Err(e) => println!("endpoint {:?} failed {:?}", endpoint, e),
                 }
             }
         }
