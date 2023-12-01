@@ -35,10 +35,7 @@ impl<'a, T> ApiEndpoint<'a, T>
 where
     T: DeserializeOwned + std::fmt::Debug,
 {
-    pub fn new(
-        endpoint: String,
-        query_params: Vec<(&'a str, &'a str)>,
-    ) -> Self {
+    pub fn new(endpoint: String, query_params: Vec<(&'a str, &'a str)>) -> Self {
         Self {
             endpoint,
             query_params,
