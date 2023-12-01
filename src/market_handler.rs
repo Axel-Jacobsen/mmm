@@ -5,6 +5,7 @@
 /// limits) are within bounds.
 use std::env;
 
+
 mod manifold_types;
 
 fn get_env_key(key: &str) -> Result<String, String> {
@@ -42,34 +43,39 @@ impl MarketHandler {
     fn get_endpoint(
         &self,
         endpoint: String,
-        query_params: Option<&[(&str, &str)]>,
+        query_params: &[(&str, &str)],
     ) -> Result<reqwest::blocking::Response, reqwest::Error> {
         let client = reqwest::blocking::Client::new();
 
-        let mut req = client
+        let req = client
             .get(format!("https://manifold.markets/api/v0/{}", endpoint))
+            .query(&query_params)
             .header("Authorization", get_env_key("MANIFOLD_KEY").unwrap());
-
-        if let Some(p) = query_params {
-            req = req.query(&p);
-        }
 
         req.send()
     }
 
     pub fn check_alive(&self) -> bool {
-        let resp = self.get_endpoint(String::from("me"), None).unwrap();
+        let resp = self.get_endpoint(String::from("me"), &[]).unwrap();
 
         resp.json::<manifold_types::LiteUser>().is_ok()
+    }
+
+    fn read_sleep(&self) {
+        std::thread::sleep(std::time::Duration::from_secs(1) / self.api_read_limit_per_s);
+    }
+
+    fn write_sleep(&self) {
+        std::thread::sleep(std::time::Duration::from_secs(1) / self.api_write_limit_per_min);
     }
 
     pub fn run(&self) {
         loop {
             for endpoint in &self.endpoints {
-                std::thread::sleep(std::time::Duration::from_secs(1) / self.api_read_limit_per_s);
+                self.read_sleep();
 
                 let resp = self
-                    .get_endpoint(endpoint.to_string(), Some(&[("limit", "1")]))
+                    .get_endpoint(endpoint.to_string(), &[("limit", "1")])
                     .unwrap();
 
                 if resp.status().is_success() {
@@ -88,7 +94,7 @@ mod tests {
 
     #[test]
     fn build_a_market_0() {
-        let market_handler = MarketHandler::new(vec![String::from("/v0/bets")]);
+        let market_handler = MarketHandler::new(vec![String::from("bets")]);
         assert!(market_handler.check_alive());
     }
 }
