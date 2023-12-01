@@ -4,7 +4,8 @@
 /// that the bots want, and make sure limits (api limits, risk
 /// limits) are within bounds.
 use std::env;
-
+use std::thread::sleep;
+use std::time::Duration;
 
 mod manifold_types;
 
@@ -62,11 +63,11 @@ impl MarketHandler {
     }
 
     fn read_sleep(&self) {
-        std::thread::sleep(std::time::Duration::from_secs(1) / self.api_read_limit_per_s);
+        sleep(Duration::from_secs(1) / self.api_read_limit_per_s);
     }
 
     fn write_sleep(&self) {
-        std::thread::sleep(std::time::Duration::from_secs(1) / self.api_write_limit_per_min);
+        sleep(Duration::from_secs(1) / self.api_write_limit_per_min);
     }
 
     pub fn run(&self) {
@@ -79,7 +80,7 @@ impl MarketHandler {
                     .unwrap();
 
                 if resp.status().is_success() {
-                    println!("{:?}", resp.text());
+                    println!("{}", resp.text().unwrap());
                 } else {
                     println!("endpoint {endpoint} failed {:?}", resp);
                 }
