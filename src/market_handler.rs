@@ -69,9 +69,11 @@ impl MarketHandler {
 
 #[cfg(test)]
 mod tests {
+    use crate::market_handler::MarketHandler;
+
     #[test]
     fn build_a_market_0() {
-        let result = 2 + 2;
-        assert_eq!(result, 4);
+        let market_handler = MarketHandler::new(vec![String::from("/v0/bets")]);
+        assert!(market_handler.check_alive());
     }
 }
