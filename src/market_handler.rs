@@ -67,9 +67,11 @@ impl MarketHandler {
         loop {
             for endpoint in &self.endpoints {
                 std::thread::sleep(std::time::Duration::from_secs(1) / self.api_read_limit_per_s);
+
                 let resp = self
                     .get_endpoint(endpoint.to_string(), Some(&[("limit", "1")]))
                     .unwrap();
+
                 if resp.status().is_success() {
                     println!("{:?}", resp.text());
                 } else {
