@@ -4,9 +4,9 @@
 /// that the bots want, and make sure limits (api limits, risk
 /// limits) are within bounds.
 use std::env;
+use std::marker::PhantomData;
 use std::thread::sleep;
 use std::time::Duration;
-use std::marker::PhantomData;
 
 use serde::de::DeserializeOwned;
 
@@ -21,19 +21,28 @@ fn get_env_key(key: &str) -> Result<String, String> {
 
 #[allow(dead_code)]
 pub struct ApiEndpoint<'a, T>
+where
+    T: DeserializeOwned,
 {
     endpoint: String,
     query_params: Vec<(&'a str, &'a str)>,
-    response_type: manifold_types::ManifoldType,
+    response_type: PhantomData<T>,
 }
 
 #[allow(dead_code)]
-impl<'a> ApiEndpoint<'a T>
-    pub fn new(endpoint: String, query_params: Vec<(&'a str, &'a str)>, response_type: manifold_types::ManifoldType) -> Self {
+impl<'a, T> ApiEndpoint<'a, T>
+where
+    T: DeserializeOwned,
+{
+    pub fn new(
+        endpoint: String,
+        query_params: Vec<(&'a str, &'a str)>,
+        response_type: manifold_types::ManifoldType,
+    ) -> Self {
         Self {
             endpoint,
             query_params,
-            response_type: response_type,
+            response_type: PhantomData,
         }
     }
 
@@ -110,7 +119,7 @@ impl MarketHandler {
         resp.json::<Vec<manifold_types::Market>>().unwrap()
     }
 
-    pub fn run(&self, endpoints: Vec<ApiEndpoint>) {
+    pub fn run(&self, endpoints: Vec<ApiEndpoint<T>>) {
         loop {
             for endpoint in &endpoints {
                 self.read_sleep();
