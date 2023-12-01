@@ -2,11 +2,12 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-
 #[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq)]
 enum MarketOutcome {
-    YES,
-    NO,
+    #[serde(rename = "YES")]
+    Yes,
+    #[serde(rename = "NO")]
+    No,
 }
 
 #[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq)]
@@ -40,7 +41,7 @@ pub struct User {
     username: String,
     url: Option<String>,
 
-    #[serde(rename="createdTime")]
+    #[serde(rename = "createdTime")]
     created_time: f64,
 
     #[serde(rename = "avatarUrl")]
@@ -91,7 +92,7 @@ pub struct Market {
     close_time: Option<u64>,
 
     /// milliseconds since epoch
-    #[serde(rename="createdTime")]
+    #[serde(rename = "createdTime")]
     created_time: f64,
 
     /// The question!
