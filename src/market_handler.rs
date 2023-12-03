@@ -6,6 +6,8 @@
 use std::env;
 use std::thread::sleep;
 use std::time::Duration;
+
+use std::collections::HashMap;
 use tokio::sync::broadcast::Sender;
 
 mod manifold_types;
@@ -15,6 +17,14 @@ fn get_env_key(key: &str) -> Result<String, String> {
         Ok(key) => Ok(format!("Key {key}")),
         Err(e) => Err(format!("couldn't find Manifold API key: {e}")),
     }
+}
+
+pub struct EndpointPacket<'a, T> where
+T: serde::de::DeserializeOwned
+{
+    endpoint_url: String,
+    endpoint_params: Vec<(&'a str, &'a str)>,
+    sender: Sender<T>,
 }
 
 #[allow(dead_code)]
@@ -55,13 +65,8 @@ impl MarketHandler {
         req.send()
     }
 
-    fn read_sleep(&self) {
-        sleep(Duration::from_secs(1) / self.api_read_limit_per_s);
-    }
-
-    fn write_sleep(&self) {
-        sleep(Duration::from_secs(1) / self.api_write_limit_per_min);
-    }
+    fn read_sleep(&self) { sleep(Duration::from_secs(1) / self.api_read_limit_per_s); }
+    fn write_sleep(&self) { sleep(Duration::from_secs(1) / self.api_write_limit_per_min); }
 
     pub fn check_alive(&self) -> bool {
         let resp = self.get_endpoint(String::from("me"), &[]).unwrap();
