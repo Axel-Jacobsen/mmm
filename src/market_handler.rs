@@ -7,6 +7,8 @@ use std::env;
 use std::thread::sleep;
 use std::time::Duration;
 
+use serde_json::{self, Value};
+
 mod manifold_types;
 
 fn get_env_key(key: &str) -> Result<String, String> {
@@ -65,14 +67,31 @@ impl MarketHandler {
             .get_endpoint(String::from("search-markets"), &[("term", term.as_str())])
             .unwrap();
 
-        resp.json::<Vec<manifold_types::LiteMarket>>().unwrap()
+        match resp.json::<Vec<manifold_types::LiteMarket>>() {
+            Ok(markets) => markets,
+            Err(e) => {
+                let resp = self
+                    .get_endpoint(String::from("search-markets"), &[("term", term.as_str())])
+                    .unwrap();
+
+                let json_array = serde_json::from_str::<Vec<Value>>(&resp.text().unwrap());
+
+                let mut markets = Vec::new();
+
+                for item in json_array.unwrap() {
+                    match serde_json::from_value::<manifold_types::LiteMarket>(item.clone()) {
+                        Ok(market) => markets.push(market),
+                        Err(_) => {
+                            println!("Failed to decode: {:?}", item);
+                        }
+                    }
+                }
+                panic!("Failed to decode: {:?}", e);
+            }
+        }
     }
 
-    pub fn get_bet_stream_for_market_id(
-        &self,
-        market_id: String,
-    ) {
-
+    pub fn get_bet_stream_for_market_id(&self, market_id: String) {
         let resp = self
             .get_endpoint(format!("bets"), &[("contractId", market_id.as_str())])
             .unwrap();
@@ -86,6 +105,7 @@ impl MarketHandler {
     pub fn run(&self, endpoints: Vec<String>) {
         loop {
             for endpoint in &endpoints {
+                // crummy way to avoid api lims
                 sleep(Duration::from_secs(1) / self.api_read_limit_per_s);
 
                 let resp = self
@@ -104,7 +124,8 @@ impl MarketHandler {
 
 #[cfg(test)]
 mod tests {
-    use crate::market_handler::LiteMarketHandler;
+    use crate::market_handler::manifold_types;
+    use crate::market_handler::MarketHandler;
 
     #[test]
     fn build_a_market() {
@@ -113,25 +134,20 @@ mod tests {
     }
 
     #[test]
-    fn search_for_market() {
+    fn test_getting_bets() {
         let market_handler = MarketHandler::new();
-        println!(
-            "{:?}",
-            market_handler.market_search(
-                "(M1000 subsidy) Will GPT-4 solve any freshly-generated Sudoku puzzle? (2023)"
-                    .to_string()
-            )
-        );
-    }
+        let all_markets = market_handler.market_search("".to_string());
 
-    #[test]
-    fn what_are_groups() {
-        let market_handler = MarketHandler::new();
-        println!(
-            "{:?}",
-            market_handler
-                .get_endpoint("groups".to_string(), &[])
-                .unwrap()
-        );
+        let market = &all_markets[0];
+        let market_id = market.id.clone();
+
+        let resp = market_handler
+            .get_endpoint(format!("bets"), &[("contractId", market_id.as_str())])
+            .unwrap();
+
+        let bets = resp.json::<Vec<manifold_types::Bet>>().unwrap();
+        for bet in bets {
+            assert!(bet.contract_id == market_id);
+        }
     }
 }
