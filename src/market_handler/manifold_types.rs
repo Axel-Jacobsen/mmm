@@ -215,6 +215,8 @@ pub struct FullMarket {
 /// A single position in a market
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ContractMetric {
+    /// From Here https://docs.manifold.markets/api#get-v0marketmarketidpositions
+
     /// The contract ID
     #[serde(rename = "contractId")]
     contract_id: String,
@@ -262,10 +264,6 @@ pub struct ContractMetric {
     #[serde(rename = "userId")]
     user_id: String,
 
-    /// User username
-    #[serde(rename = "userUsername")]
-    user_username: String,
-
     /// User name
     #[serde(rename = "userName")]
     user_name: String,
@@ -299,67 +297,88 @@ pub struct PeriodMetric {
 /// Represents a bet
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Bet {
+    /// From https://github.com/manifoldmarkets/manifold/blob/main/common/src/bet.ts
+
     id: String,
     #[serde(rename = "userId")]
     user_id: String,
-    /// Denormalized for bet lists
     #[serde(rename = "userAvatarUrl", skip_serializing_if = "Option::is_none")]
     user_avatar_url: Option<String>,
-    #[serde(rename = "userUsername")]
-    user_username: String,
-    #[serde(rename = "userName")]
-    user_name: String,
+
+    // #[serde(rename = "userName")]
+    // user_name: String,
+
     #[serde(rename = "contractId")]
     contract_id: String,
+
     /// For multi-binary contracts. Optional.
     #[serde(rename = "answerId", skip_serializing_if = "Option::is_none")]
     answer_id: Option<String>,
+
     #[serde(rename = "createdTime")]
     created_time: u64,
+
     /// Bet size; negative if SELL bet
     amount: f64,
+
     /// Optional loan amount
     #[serde(rename = "loanAmount", skip_serializing_if = "Option::is_none")]
     loan_amount: Option<f64>,
+
     outcome: String,
+
     /// Dynamic parimutuel pool weight or fixed; negative if SELL bet
     shares: f64,
+
     /// Deprecated: Gain shares in multiple outcomes. Part of cpmm-2 multiple choice.
     #[deprecated(note = "Use alternative field")]
     #[serde(rename = "sharesByOutcome", skip_serializing_if = "Option::is_none")]
     shares_by_outcome: Option<HashMap<String, f64>>,
+
     #[serde(rename = "probBefore")]
     prob_before: f64,
+
     #[serde(rename = "probAfter")]
     prob_after: f64,
+
     fees: Fees,
+
     /// True if bet was placed via API. Optional.
     #[serde(rename = "isApi", skip_serializing_if = "Option::is_none")]
     is_api: Option<bool>,
+
     #[serde(rename = "isAnte")]
     is_ante: bool,
+
     #[serde(rename = "isRedemption")]
     is_redemption: bool,
+
     #[serde(rename = "isChallenge")]
     is_challenge: bool,
+
     visibility: Visibility,
+
     /// Optional challenge slug
     #[serde(rename = "challengeSlug", skip_serializing_if = "Option::is_none")]
     challenge_slug: Option<String>,
+
     /// True if this BUY bet has been sold. Optional.
     #[serde(rename = "isSold", skip_serializing_if = "Option::is_none")]
     is_sold: Option<bool>,
+
     /// This field marks a SELL bet. Optional.
     #[serde(rename = "sale", skip_serializing_if = "Option::is_none")]
     sale: Option<Sale>,
+
     /// Optional reply to comment ID
     #[serde(rename = "replyToCommentId", skip_serializing_if = "Option::is_none")]
     reply_to_comment_id: Option<String>,
+
     #[serde(flatten)]
     limit_props: Option<LimitProps>,
 
-    #[serde(rename = "userUsername")]
-    user_username: String,
+    // #[serde(rename = "userUsername")]
+    // user_username: String,
 }
 
 /// Represents a sale in a bet
