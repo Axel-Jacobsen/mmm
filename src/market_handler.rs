@@ -66,13 +66,6 @@ impl MarketHandler {
         req.send()
     }
 
-    fn read_sleep(&self) {
-        sleep(Duration::from_secs(1) / self.api_read_limit_per_s);
-    }
-    fn write_sleep(&self) {
-        sleep(Duration::from_secs(1) / self.api_write_limit_per_min);
-    }
-
     pub fn check_alive(&self) -> bool {
         let resp = self.get_endpoint(String::from("me"), &[]).unwrap();
 
@@ -90,7 +83,7 @@ impl MarketHandler {
     pub fn run(&self, endpoints: Vec<String>) {
         loop {
             for endpoint in &endpoints {
-                self.read_sleep();
+                sleep(Duration::from_secs(1) / self.api_read_limit_per_s);
 
                 let resp = self
                     .get_endpoint(endpoint.to_string(), &[("limit", "1")])
