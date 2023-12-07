@@ -302,14 +302,17 @@ pub struct Bet {
     id: String,
     #[serde(rename = "userId")]
     user_id: String,
+
+    // denormalized for bet lists (whatever that means)
     #[serde(rename = "userAvatarUrl", skip_serializing_if = "Option::is_none")]
     user_avatar_url: Option<String>,
-
-    // #[serde(rename = "userName")]
-    // user_name: String,
+    #[serde(rename = "userName", skip_serializing_if = "Option::is_none")]
+    user_name: Option<String>,
+    #[serde(rename = "userUsername", skip_serializing_if = "Option::is_none")]
+    user_username: Option<String>,
 
     #[serde(rename = "contractId")]
-    contract_id: String,
+    pub contract_id: String,
 
     /// For multi-binary contracts. Optional.
     #[serde(rename = "answerId", skip_serializing_if = "Option::is_none")]
@@ -376,9 +379,6 @@ pub struct Bet {
 
     #[serde(flatten)]
     limit_props: Option<LimitProps>,
-
-    // #[serde(rename = "userUsername")]
-    // user_username: String,
 }
 
 /// Represents a sale in a bet

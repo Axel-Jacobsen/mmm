@@ -77,7 +77,10 @@ impl MarketHandler {
             .get_endpoint(format!("bets"), &[("contractId", market_id.as_str())])
             .unwrap();
 
-        println!("respP: {:?}", resp.json::<Vec<manifold_types::Bet>>());
+        let bets = resp.json::<Vec<manifold_types::Bet>>().unwrap();
+        for bet in bets {
+            assert!(bet.contract_id == market_id);
+        }
     }
 
     pub fn run(&self, endpoints: Vec<String>) {
