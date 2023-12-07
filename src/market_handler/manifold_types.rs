@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq)]
 pub enum MarketOutcome {
+    // maybe not so useful, because MarketOutcome can be YES, NO,
+    // and 0..\d for some reason
     #[serde(rename = "YES")]
     Yes,
     #[serde(rename = "NO")]
@@ -14,6 +16,8 @@ pub enum MarketOutcome {
 pub enum MarketMechanism {
     #[serde(rename = "cpmm-1")]
     Cpmm,
+    #[serde(rename = "cpmm-multi-1")]
+    CpmmMulti,
     #[serde(rename = "dpm-2")]
     Dpm,
 }
@@ -24,12 +28,14 @@ pub enum MarketOutcomeType {
     Binary,
     #[serde(rename = "FREE_RESPONSE")]
     FreeResponse,
-    #[serde(rename = "MULTI_CHOICE")]
+    #[serde(rename = "MULTIPLE_CHOICE")]
     MultipleChoice,
     #[serde(rename = "NUMERIC")]
     Numeric,
     #[serde(rename = "PSEUDO_NUMERIC")]
     PseudoNumeric,
+    #[serde(rename = "STONK")]
+    Stonk,
 }
 
 #[allow(dead_code)]
@@ -102,19 +108,22 @@ pub struct LiteMarket {
     ///   i.e. <https://manifold.markets/Austin/test-market> is the same as <https://manifold.markets/foo/test-market>
     url: String,
 
-    #[serde(rename = "outcomeType")]
     /// BINARY, FREE_RESPONSE, MULTIPLE_CHOICE, NUMERIC, or PSEUDO_NUMERIC
+    #[serde(rename = "outcomeType")]
     outcome_type: MarketOutcomeType,
 
     /// dpm-2 or cpmm-1
     mechanism: MarketMechanism,
 
     /// current probability of the market
-    probability: f64,
+    probability: Option<f64>,
 
     /// For CPMM markets, the number of shares in the liquidity pool. For DPM markets,
     /// the amount of mana invested in each answer.
-    pool: HashMap<MarketOutcome, f64>,
+    // pool: Option<HashMap<MarketOutcome, f64>>,
+    // ^^^^ MarketOutcome can be YES, NO, and 0..\d
+    // Therefore we just do String, and we'll have to deal w/ decoding YES / NO at runtime :(
+    pool: Option<HashMap<String, f64>>,
 
     /// CPMM markets only, probability constant in y^p * n^(1-p) = k
     p: Option<f64>,
@@ -139,6 +148,7 @@ pub struct LiteMarket {
     is_log_scale: Option<bool>,
 
     volume: f64,
+
     #[serde(rename = "volume24Hours")]
     volume_24_hours: f64,
 
@@ -147,6 +157,7 @@ pub struct LiteMarket {
 
     #[serde(rename = "resolutionTime")]
     resolution_time: Option<u64>,
+
     resolution: Option<String>,
 
     /// Used for BINARY markets resolved to MKT
@@ -189,6 +200,7 @@ pub struct Answer {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct JSONContent {
     // Not dealing w/ this for now
+    // I don't even think it's useful
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -298,7 +310,6 @@ pub struct PeriodMetric {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Bet {
     /// From https://github.com/manifoldmarkets/manifold/blob/main/common/src/bet.ts
-
     id: String,
     #[serde(rename = "userId")]
     user_id: String,
