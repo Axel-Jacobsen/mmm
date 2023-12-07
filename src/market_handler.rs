@@ -47,7 +47,7 @@ impl MarketHandler {
         let client = reqwest::blocking::Client::new();
 
         let req = client
-            .get(format!("https://manifold.markets/api/v0/{}", endpoint))
+            .get(format!("https://manifold.markets/api/v0/{endpoint}"))
             .query(&query_params)
             .header("Authorization", get_env_key("MANIFOLD_KEY").unwrap());
 
@@ -55,7 +55,7 @@ impl MarketHandler {
     }
 
     pub fn check_alive(&self) -> bool {
-        let resp = self.get_endpoint(String::from("me"), &[]).unwrap();
+        let resp = self.get_endpoint("me".to_string(), &[]).unwrap();
 
         resp.json::<manifold_types::User>().is_ok()
     }
@@ -71,20 +71,13 @@ impl MarketHandler {
     pub fn get_bet_stream_for_market_id(
         &self,
         market_id: String,
-    ) -> Result<Vec<manifold_types::LiteMarket>, String> {
-        let resp = self
-            .get_endpoint(format!("markets/{market_id}"), &[])
-            .unwrap();
-
-        println!("resp: {:?}", resp.json::<manifold_types::FullMarket>());
+    ) {
 
         let resp = self
-            .get_endpoint(format!("markets/{market_id}/bets"), &[])
+            .get_endpoint(format!("bets"), &[("contractId", market_id.as_str())])
             .unwrap();
 
-        println!("resp: {:?}", resp.json::<Vec<manifold_types::Answer>>());
-
-        Ok(vec![])
+        println!("respP: {:?}", resp.json::<Vec<manifold_types::Bet>>());
     }
 
     pub fn run(&self, endpoints: Vec<String>) {

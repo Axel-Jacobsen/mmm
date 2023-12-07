@@ -10,4 +10,5 @@ fn main() {
 
     assert!(markets.len() == 1);
 
+    market_handler.get_bet_stream_for_market_id(markets[0].id.to_string());
 }

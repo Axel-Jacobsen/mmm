@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq)]
-enum MarketOutcome {
+pub enum MarketOutcome {
     #[serde(rename = "YES")]
     Yes,
     #[serde(rename = "NO")]
@@ -11,7 +11,7 @@ enum MarketOutcome {
 }
 
 #[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq)]
-enum MarketMechanism {
+pub enum MarketMechanism {
     #[serde(rename = "cpmm-1")]
     Cpmm,
     #[serde(rename = "dpm-2")]
@@ -19,7 +19,7 @@ enum MarketMechanism {
 }
 
 #[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq)]
-enum MarketOutcomeType {
+pub enum MarketOutcomeType {
     #[serde(rename = "BINARY")]
     Binary,
     #[serde(rename = "FREE_RESPONSE")]
@@ -41,7 +41,7 @@ pub struct User {
     username: String,
     url: Option<String>,
     #[serde(rename = "createdTime")]
-    created_time: f64,
+    created_time: u64,
 
     #[serde(rename = "avatarUrl")]
     avatar_url: String,
@@ -72,7 +72,7 @@ pub struct LiteMarket {
     /// from <https://docs.manifold.markets/api#get-v0markets>
 
     /// Unique identifer for this market
-    id: String,
+    pub id: String,
 
     /// Attributes about the creator
     #[serde(rename = "creatorUsername")]
@@ -92,7 +92,7 @@ pub struct LiteMarket {
 
     /// milliseconds since epoch
     #[serde(rename = "createdTime")]
-    created_time: f64,
+    created_time: u64,
 
     /// The question!
     question: String,
@@ -146,7 +146,7 @@ pub struct LiteMarket {
     is_resolved: bool,
 
     #[serde(rename = "resolutionTime")]
-    resolution_time: Option<f64>,
+    resolution_time: Option<u64>,
     resolution: Option<String>,
 
     /// Used for BINARY markets resolved to MKT
@@ -157,10 +157,10 @@ pub struct LiteMarket {
     unique_bettor_count: u64,
 
     #[serde(rename = "lastUpdatedTime")]
-    last_updated_time: Option<f64>,
+    last_updated_time: Option<u64>,
 
     #[serde(rename = "lastBetTime")]
-    last_bet_time: Option<f64>,
+    last_bet_time: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -168,7 +168,7 @@ pub struct Answer {
     /// Guessing on this one :(
 
     #[serde(rename = "createdTime")]
-    created_time: f64,
+    created_time: u64,
 
     #[serde(rename = "avatarURL")]
     avatar_url: String,
@@ -187,7 +187,7 @@ pub struct Answer {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct JSONContent {
+pub struct JSONContent {
     // Not dealing w/ this for now
 }
 
@@ -197,12 +197,12 @@ pub struct FullMarket {
     lite_market: LiteMarket,
 
     /// dpm-2 markets only
-    answers: Option<Vec<Answer>>, // Assuming Answer is a defined struct
+    answers: Option<Vec<Answer>>,
 
     /// Rich text content. See https://tiptap.dev/guide/output#option-1-json
     #[serde(skip_deserializing)]
-    description: Option<JSONContent>, // Assuming JSONContent is a defined type
-                         //
+    description: Option<JSONContent>,
+
     /// string description without formatting, images, or embeds
     #[serde(rename = "textDescription")]
     text_description: String,
@@ -213,58 +213,74 @@ pub struct FullMarket {
 }
 
 /// A single position in a market
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ContractMetric {
     /// The contract ID
     #[serde(rename = "contractId")]
     contract_id: String,
+
     /// Includes day, week, month. Can be undefined.
     from: Option<HashMap<String, PeriodMetric>>,
+
     /// Indicates if there are no shares
     #[serde(rename = "hasNoShares")]
     has_no_shares: bool,
+
     /// Indicates if there are shares
     #[serde(rename = "hasShares")]
     has_shares: bool,
+
     /// Indicates if there are yes shares
     #[serde(rename = "hasYesShares")]
     has_yes_shares: bool,
+
     /// Invested amount
     invested: f64,
+
     /// Loan amount
     loan: f64,
+
     /// Maximum shares outcome, can be null
     #[serde(rename = "maxSharesOutcome")]
     max_shares_outcome: Option<String>,
+
     /// Payout amount
     payout: f64,
+
     /// Profit amount
     profit: f64,
+
     /// Profit percentage
     #[serde(rename = "profitPercent")]
     profit_percent: f64,
+
     /// Total shares
     #[serde(rename = "totalShares")]
     total_shares: HashMap<MarketOutcome, f64>,
+
     /// User ID
     #[serde(rename = "userId")]
     user_id: String,
+
     /// User username
     #[serde(rename = "userUsername")]
     user_username: String,
+
     /// User name
     #[serde(rename = "userName")]
     user_name: String,
+
     /// User avatar URL
     #[serde(rename = "userAvatarUrl")]
     user_avatar_url: String,
+
     /// Last bet time
     #[serde(rename = "lastBetTime")]
     last_bet_time: u64,
 }
 
 /// Metrics for a specific period
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct PeriodMetric {
     /// Profit amount
     profit: f64,
@@ -281,8 +297,8 @@ pub struct PeriodMetric {
 }
 
 /// Represents a bet
-#[derive(Serialize, Deserialize)]
-struct Bet {
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Bet {
     id: String,
     #[serde(rename = "userId")]
     user_id: String,
@@ -316,7 +332,7 @@ struct Bet {
     prob_before: f64,
     #[serde(rename = "probAfter")]
     prob_after: f64,
-    fees: Fees, // Assuming Fees is a defined struct
+    fees: Fees,
     /// True if bet was placed via API. Optional.
     #[serde(rename = "isApi", skip_serializing_if = "Option::is_none")]
     is_api: Option<bool>,
@@ -326,7 +342,7 @@ struct Bet {
     is_redemption: bool,
     #[serde(rename = "isChallenge")]
     is_challenge: bool,
-    visibility: Visibility, // Assuming Visibility is a defined type
+    visibility: Visibility,
     /// Optional challenge slug
     #[serde(rename = "challengeSlug", skip_serializing_if = "Option::is_none")]
     challenge_slug: Option<String>,
@@ -340,11 +356,14 @@ struct Bet {
     #[serde(rename = "replyToCommentId", skip_serializing_if = "Option::is_none")]
     reply_to_comment_id: Option<String>,
     #[serde(flatten)]
-    limit_props: Option<LimitProps>, // Assuming LimitProps is a defined struct or enum
+    limit_props: Option<LimitProps>,
+
+    #[serde(rename = "userUsername")]
+    user_username: String,
 }
 
 /// Represents a sale in a bet
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Sale {
     /// Amount user makes from sale
     amount: f64,
@@ -354,7 +373,7 @@ pub struct Sale {
 }
 
 /// NumericBet extends Bet with additional fields
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct NumericBet {
     #[serde(flatten)]
     bet: Bet,
@@ -366,7 +385,7 @@ pub struct NumericBet {
 }
 
 /// LimitBet is a Bet with LimitProps flattened into it
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct LimitBet {
     #[serde(flatten)]
     bet: Bet,
@@ -375,7 +394,7 @@ pub struct LimitBet {
 }
 
 /// Properties specific to a limit bet
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct LimitProps {
     /// Amount of mana in the order
     #[serde(rename = "orderAmount")]
@@ -390,14 +409,14 @@ pub struct LimitProps {
     #[serde(rename = "isCancelled")]
     is_cancelled: bool,
     /// A record of each transaction that partially (or fully) fills the orderAmount.
-    fills: Vec<Fill>, // Assuming Fill is a defined struct
+    fills: Vec<Fill>,
     /// ms since epoch. Optional.
     #[serde(rename = "expiresAt", skip_serializing_if = "Option::is_none")]
     expires_at: Option<u64>,
 }
 
 /// Represents a fill in a bet
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Fill {
     /// The id the bet matched against, or null if the bet was matched by the pool.
     #[serde(rename = "matchedBetId")]
@@ -414,20 +433,22 @@ pub struct Fill {
     is_sale: Option<bool>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Fees {
     /// Fee for the creator
     #[serde(rename = "creatorFee")]
     creator_fee: f64,
+
     /// Fee for the platform
     #[serde(rename = "platformFee")]
     platform_fee: f64,
+
     /// Fee for liquidity
     #[serde(rename = "liquidityFee")]
     liquidity_fee: f64,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "lowercase")]
 pub enum Visibility {
     Public,
