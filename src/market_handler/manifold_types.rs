@@ -40,7 +40,6 @@ pub struct User {
     name: String,
     username: String,
     url: Option<String>,
-
     #[serde(rename = "createdTime")]
     created_time: f64,
 
@@ -69,7 +68,7 @@ pub struct User {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Market {
+pub struct LiteMarket {
     /// from <https://docs.manifold.markets/api#get-v0markets>
 
     /// Unique identifer for this market
@@ -162,4 +161,276 @@ pub struct Market {
 
     #[serde(rename = "lastBetTime")]
     last_bet_time: Option<f64>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Answer {
+    /// Guessing on this one :(
+
+    #[serde(rename = "createdTime")]
+    created_time: f64,
+
+    #[serde(rename = "avatarURL")]
+    avatar_url: String,
+    id: String,
+    username: String,
+    number: u32,
+    name: String,
+
+    #[serde(rename = "contract_id")]
+    contract_id: String,
+    text: String,
+
+    #[serde(rename = "userId")]
+    user_id: String,
+    probability: f64,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct JSONContent {
+    // Not dealing w/ this for now
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct FullMarket {
+    #[serde(flatten)]
+    lite_market: LiteMarket,
+
+    /// dpm-2 markets only
+    answers: Option<Vec<Answer>>, // Assuming Answer is a defined struct
+
+    /// Rich text content. See https://tiptap.dev/guide/output#option-1-json
+    #[serde(skip_deserializing)]
+    description: Option<JSONContent>, // Assuming JSONContent is a defined type
+                         //
+    /// string description without formatting, images, or embeds
+    #[serde(rename = "textDescription")]
+    text_description: String,
+
+    /// groups which the market is a part of
+    #[serde(rename = "groupSlugs")]
+    group_slugs: Option<Vec<String>>,
+}
+
+/// A single position in a market
+#[derive(Serialize, Deserialize)]
+pub struct ContractMetric {
+    /// The contract ID
+    #[serde(rename = "contractId")]
+    contract_id: String,
+    /// Includes day, week, month. Can be undefined.
+    from: Option<HashMap<String, PeriodMetric>>,
+    /// Indicates if there are no shares
+    #[serde(rename = "hasNoShares")]
+    has_no_shares: bool,
+    /// Indicates if there are shares
+    #[serde(rename = "hasShares")]
+    has_shares: bool,
+    /// Indicates if there are yes shares
+    #[serde(rename = "hasYesShares")]
+    has_yes_shares: bool,
+    /// Invested amount
+    invested: f64,
+    /// Loan amount
+    loan: f64,
+    /// Maximum shares outcome, can be null
+    #[serde(rename = "maxSharesOutcome")]
+    max_shares_outcome: Option<String>,
+    /// Payout amount
+    payout: f64,
+    /// Profit amount
+    profit: f64,
+    /// Profit percentage
+    #[serde(rename = "profitPercent")]
+    profit_percent: f64,
+    /// Total shares
+    #[serde(rename = "totalShares")]
+    total_shares: HashMap<MarketOutcome, f64>,
+    /// User ID
+    #[serde(rename = "userId")]
+    user_id: String,
+    /// User username
+    #[serde(rename = "userUsername")]
+    user_username: String,
+    /// User name
+    #[serde(rename = "userName")]
+    user_name: String,
+    /// User avatar URL
+    #[serde(rename = "userAvatarUrl")]
+    user_avatar_url: String,
+    /// Last bet time
+    #[serde(rename = "lastBetTime")]
+    last_bet_time: u64,
+}
+
+/// Metrics for a specific period
+#[derive(Serialize, Deserialize)]
+pub struct PeriodMetric {
+    /// Profit amount
+    profit: f64,
+    /// Profit percentage
+    #[serde(rename = "profitPercent")]
+    profit_percent: f64,
+    /// Invested amount
+    invested: f64,
+    /// Previous value
+    #[serde(rename = "prevValue")]
+    prev_value: f64,
+    /// Current value
+    value: f64,
+}
+
+/// Represents a bet
+#[derive(Serialize, Deserialize)]
+struct Bet {
+    id: String,
+    #[serde(rename = "userId")]
+    user_id: String,
+    /// Denormalized for bet lists
+    #[serde(rename = "userAvatarUrl", skip_serializing_if = "Option::is_none")]
+    user_avatar_url: Option<String>,
+    #[serde(rename = "userUsername")]
+    user_username: String,
+    #[serde(rename = "userName")]
+    user_name: String,
+    #[serde(rename = "contractId")]
+    contract_id: String,
+    /// For multi-binary contracts. Optional.
+    #[serde(rename = "answerId", skip_serializing_if = "Option::is_none")]
+    answer_id: Option<String>,
+    #[serde(rename = "createdTime")]
+    created_time: u64,
+    /// Bet size; negative if SELL bet
+    amount: f64,
+    /// Optional loan amount
+    #[serde(rename = "loanAmount", skip_serializing_if = "Option::is_none")]
+    loan_amount: Option<f64>,
+    outcome: String,
+    /// Dynamic parimutuel pool weight or fixed; negative if SELL bet
+    shares: f64,
+    /// Deprecated: Gain shares in multiple outcomes. Part of cpmm-2 multiple choice.
+    #[deprecated(note = "Use alternative field")]
+    #[serde(rename = "sharesByOutcome", skip_serializing_if = "Option::is_none")]
+    shares_by_outcome: Option<HashMap<String, f64>>,
+    #[serde(rename = "probBefore")]
+    prob_before: f64,
+    #[serde(rename = "probAfter")]
+    prob_after: f64,
+    fees: Fees, // Assuming Fees is a defined struct
+    /// True if bet was placed via API. Optional.
+    #[serde(rename = "isApi", skip_serializing_if = "Option::is_none")]
+    is_api: Option<bool>,
+    #[serde(rename = "isAnte")]
+    is_ante: bool,
+    #[serde(rename = "isRedemption")]
+    is_redemption: bool,
+    #[serde(rename = "isChallenge")]
+    is_challenge: bool,
+    visibility: Visibility, // Assuming Visibility is a defined type
+    /// Optional challenge slug
+    #[serde(rename = "challengeSlug", skip_serializing_if = "Option::is_none")]
+    challenge_slug: Option<String>,
+    /// True if this BUY bet has been sold. Optional.
+    #[serde(rename = "isSold", skip_serializing_if = "Option::is_none")]
+    is_sold: Option<bool>,
+    /// This field marks a SELL bet. Optional.
+    #[serde(rename = "sale", skip_serializing_if = "Option::is_none")]
+    sale: Option<Sale>,
+    /// Optional reply to comment ID
+    #[serde(rename = "replyToCommentId", skip_serializing_if = "Option::is_none")]
+    reply_to_comment_id: Option<String>,
+    #[serde(flatten)]
+    limit_props: Option<LimitProps>, // Assuming LimitProps is a defined struct or enum
+}
+
+/// Represents a sale in a bet
+#[derive(Serialize, Deserialize)]
+pub struct Sale {
+    /// Amount user makes from sale
+    amount: f64,
+    /// ID of BUY bet being sold
+    #[serde(rename = "betId")]
+    bet_id: String,
+}
+
+/// NumericBet extends Bet with additional fields
+#[derive(Serialize, Deserialize)]
+pub struct NumericBet {
+    #[serde(flatten)]
+    bet: Bet,
+    value: f64,
+    #[serde(rename = "allOutcomeShares")]
+    all_outcome_shares: HashMap<String, f64>,
+    #[serde(rename = "allBetAmounts")]
+    all_bet_amounts: HashMap<String, f64>,
+}
+
+/// LimitBet is a Bet with LimitProps flattened into it
+#[derive(Serialize, Deserialize)]
+pub struct LimitBet {
+    #[serde(flatten)]
+    bet: Bet,
+    #[serde(flatten)]
+    limit_props: LimitProps,
+}
+
+/// Properties specific to a limit bet
+#[derive(Serialize, Deserialize)]
+pub struct LimitProps {
+    /// Amount of mana in the order
+    #[serde(rename = "orderAmount")]
+    order_amount: f64,
+    /// [0, 1]. Bet to this probability.
+    #[serde(rename = "limitProb")]
+    limit_prob: f64,
+    /// Whether all of the bet amount has been filled.
+    #[serde(rename = "isFilled")]
+    is_filled: bool,
+    /// Whether to prevent any further fills.
+    #[serde(rename = "isCancelled")]
+    is_cancelled: bool,
+    /// A record of each transaction that partially (or fully) fills the orderAmount.
+    fills: Vec<Fill>, // Assuming Fill is a defined struct
+    /// ms since epoch. Optional.
+    #[serde(rename = "expiresAt", skip_serializing_if = "Option::is_none")]
+    expires_at: Option<u64>,
+}
+
+/// Represents a fill in a bet
+#[derive(Serialize, Deserialize)]
+pub struct Fill {
+    /// The id the bet matched against, or null if the bet was matched by the pool.
+    #[serde(rename = "matchedBetId")]
+    matched_bet_id: Option<String>,
+    /// Amount involved in the fill
+    amount: f64,
+    /// Shares involved in the fill
+    shares: f64,
+    /// Timestamp of the fill
+    timestamp: u64,
+    /// If the fill is a sale, it means the matching bet has shares of the same outcome.
+    /// I.e., -fill.shares === matchedBet.shares. Optional.
+    #[serde(rename = "isSale", skip_serializing_if = "Option::is_none")]
+    is_sale: Option<bool>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Fees {
+    /// Fee for the creator
+    #[serde(rename = "creatorFee")]
+    creator_fee: f64,
+    /// Fee for the platform
+    #[serde(rename = "platformFee")]
+    platform_fee: f64,
+    /// Fee for liquidity
+    #[serde(rename = "liquidityFee")]
+    liquidity_fee: f64,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Visibility {
+    Public,
+    Unlisted,
+    Private,
 }

@@ -1,14 +1,13 @@
 mod bots;
 mod market_handler;
 
-#[allow(unused_variables)]
-#[tokio::main]
-async fn main() -> Result<(), reqwest::Error> {
+fn main() {
     let market_handler = market_handler::MarketHandler::new();
-    let b = bots::ArbitrageBot {};
-    let hopefully_one_market = market_handler.market_search(
-        "Long shot(ish) bets: How many of these 13 markets will resolve as expected?".to_string(),
-    );
+    assert!(market_handler.check_alive());
 
-    Ok(())
+    let markets = market_handler.market_search(
+        "(M25000 subsidy!) Will a prompt that enables GPT-4 to solve easy Sudoku puzzles be found? (2023)".to_string());
+
+    assert!(markets.len() == 1);
+
 }

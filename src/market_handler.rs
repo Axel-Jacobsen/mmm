@@ -7,9 +7,6 @@ use std::env;
 use std::thread::sleep;
 use std::time::Duration;
 
-use std::collections::HashMap;
-use tokio::sync::broadcast::Sender;
-
 mod manifold_types;
 
 fn get_env_key(key: &str) -> Result<String, String> {
@@ -17,15 +14,6 @@ fn get_env_key(key: &str) -> Result<String, String> {
         Ok(key) => Ok(format!("Key {key}")),
         Err(e) => Err(format!("couldn't find Manifold API key: {e}")),
     }
-}
-
-pub struct EndpointPacket<'a, T>
-where
-    T: serde::de::DeserializeOwned,
-{
-    endpoint_url: String,
-    endpoint_params: Vec<(&'a str, &'a str)>,
-    sender: Sender<T>,
 }
 
 #[allow(dead_code)]
@@ -51,7 +39,7 @@ impl MarketHandler {
         }
     }
 
-    fn get_endpoint(
+    pub fn get_endpoint(
         &self,
         endpoint: String,
         query_params: &[(&str, &str)],
@@ -72,12 +60,31 @@ impl MarketHandler {
         resp.json::<manifold_types::User>().is_ok()
     }
 
-    pub fn market_search(&self, term: String) -> Vec<manifold_types::Market> {
+    pub fn market_search(&self, term: String) -> Vec<manifold_types::LiteMarket> {
         let resp = self
             .get_endpoint(String::from("search-markets"), &[("term", term.as_str())])
             .unwrap();
 
-        resp.json::<Vec<manifold_types::Market>>().unwrap()
+        resp.json::<Vec<manifold_types::LiteMarket>>().unwrap()
+    }
+
+    pub fn get_bet_stream_for_market_id(
+        &self,
+        market_id: String,
+    ) -> Result<Vec<manifold_types::LiteMarket>, String> {
+        let resp = self
+            .get_endpoint(format!("markets/{market_id}"), &[])
+            .unwrap();
+
+        println!("resp: {:?}", resp.json::<manifold_types::FullMarket>());
+
+        let resp = self
+            .get_endpoint(format!("markets/{market_id}/bets"), &[])
+            .unwrap();
+
+        println!("resp: {:?}", resp.json::<Vec<manifold_types::Answer>>());
+
+        Ok(vec![])
     }
 
     pub fn run(&self, endpoints: Vec<String>) {
@@ -101,23 +108,34 @@ impl MarketHandler {
 
 #[cfg(test)]
 mod tests {
-    use crate::market_handler::MarketHandler;
+    use crate::market_handler::LiteMarketHandler;
 
     #[test]
     fn build_a_market() {
-        let market_handler = MarketHandler::new(vec![String::from("bets")]);
+        let market_handler = MarketHandler::new();
         assert!(market_handler.check_alive());
     }
 
     #[test]
     fn search_for_market() {
-        let market_handler = MarketHandler::new(vec![String::from("bets")]);
+        let market_handler = MarketHandler::new();
         println!(
             "{:?}",
             market_handler.market_search(
                 "(M1000 subsidy) Will GPT-4 solve any freshly-generated Sudoku puzzle? (2023)"
                     .to_string()
             )
+        );
+    }
+
+    #[test]
+    fn what_are_groups() {
+        let market_handler = MarketHandler::new();
+        println!(
+            "{:?}",
+            market_handler
+                .get_endpoint("groups".to_string(), &[])
+                .unwrap()
         );
     }
 }
