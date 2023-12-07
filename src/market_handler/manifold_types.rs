@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq)]
@@ -20,6 +19,8 @@ pub enum MarketMechanism {
     CpmmMulti,
     #[serde(rename = "dpm-2")]
     Dpm,
+    #[serde(rename = "none")]
+    None,
 }
 
 #[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq)]
@@ -36,6 +37,10 @@ pub enum MarketOutcomeType {
     PseudoNumeric,
     #[serde(rename = "STONK")]
     Stonk,
+    #[serde(rename = "POLL")]
+    Poll,
+    #[serde(rename = "BOUNTIED_QUESTION")]
+    BountiedQuestion,
 }
 
 #[allow(dead_code)]
@@ -92,9 +97,13 @@ pub struct LiteMarket {
     creator_avatar_url: Option<String>,
 
     /// Market attributes. All times are in milliseconds since epoch
+
     /// Min of creator's chosen date, and resolutionTime
+    /// bug in the API (I think?) lets close_time be < 0
+    /// see https://manifold.markets/PlasmaBallin/will-the-trinity-test-ignite-the-at
+    /// Just leave as Option<i64>
     #[serde(rename = "closeTime")]
-    close_time: Option<u64>,
+    close_time: Option<i64>,
 
     /// milliseconds since epoch
     #[serde(rename = "createdTime")]

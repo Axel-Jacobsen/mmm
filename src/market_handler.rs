@@ -62,16 +62,29 @@ impl MarketHandler {
         resp.json::<manifold_types::User>().is_ok()
     }
 
-    pub fn market_search(&self, term: String) -> Vec<manifold_types::LiteMarket> {
+    pub fn market_search(&self, term: &str) -> Option<manifold_types::LiteMarket> {
         let resp = self
-            .get_endpoint(String::from("search-markets"), &[("term", term.as_str())])
+            .get_endpoint(
+                String::from("search-markets"),
+                &[("term", term), ("limit", "1")],
+            )
             .unwrap();
 
         match resp.json::<Vec<manifold_types::LiteMarket>>() {
-            Ok(markets) => markets,
+            Ok(mut markets) => {
+                if markets.len() == 1 {
+                    markets.pop()
+                } else {
+                    None
+                }
+            }
             Err(e) => {
+                // this code here is purely for debugging, and hopefully is like never called
                 let resp = self
-                    .get_endpoint(String::from("search-markets"), &[("term", term.as_str())])
+                    .get_endpoint(
+                        String::from("search-markets"),
+                        &[("term", term), ("limit", "1")],
+                    )
                     .unwrap();
 
                 let json_array = serde_json::from_str::<Vec<Value>>(&resp.text().unwrap());
@@ -127,27 +140,44 @@ mod tests {
     use crate::market_handler::manifold_types;
     use crate::market_handler::MarketHandler;
 
+    use serde_json::{self, Value};
+
     #[test]
-    fn build_a_market() {
+    fn build_a_market_handler() {
         let market_handler = MarketHandler::new();
         assert!(market_handler.check_alive());
     }
 
     #[test]
-    fn test_getting_bets() {
+    fn test_parse_markets() {
         let market_handler = MarketHandler::new();
-        let all_markets = market_handler.market_search("".to_string());
-
-        let market = &all_markets[0];
-        let market_id = market.id.clone();
-
-        let resp = market_handler
-            .get_endpoint(format!("bets"), &[("contractId", market_id.as_str())])
+        let all_markets = market_handler
+            .get_endpoint("markets".to_string(), &[("limit", "1000")])
             .unwrap();
 
-        let bets = resp.json::<Vec<manifold_types::Bet>>().unwrap();
-        for bet in bets {
-            assert!(bet.contract_id == market_id);
+        // testing that we can parse markets correctly
+        match all_markets.json::<Vec<manifold_types::LiteMarket>>() {
+            Ok(_markets) => (),
+            Err(e) => {
+                // this code here is purely for debugging, and hopefully is like never called
+                let resp = market_handler
+                    .get_endpoint("markets".to_string(), &[("limit", "1000")])
+                    .unwrap();
+
+                let json_array = serde_json::from_str::<Vec<Value>>(&resp.text().unwrap());
+
+                let mut markets = Vec::new();
+
+                for item in json_array.unwrap() {
+                    match serde_json::from_value::<manifold_types::LiteMarket>(item.clone()) {
+                        Ok(market) => markets.push(market),
+                        Err(e) => {
+                            println!("Failed to decode: {:?} due to {:?}\n", item, e);
+                        }
+                    }
+                }
+                panic!("Failed to decode: {:?}", e);
+            }
         }
     }
 }
