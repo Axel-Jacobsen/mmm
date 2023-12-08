@@ -25,6 +25,7 @@ async fn main() {
         i += 1;
         if i > 10 {
             market_handler.halt();
+            break;
         }
     }
 }

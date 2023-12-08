@@ -41,9 +41,7 @@ pub async fn get_endpoint(
 pub struct MarketHandler {
     api_read_limit_per_s: u32,
     api_write_limit_per_min: u32,
-
     halt_flag: Arc<AtomicBool>,
-
     bet_channels: HashMap<String, Sender<manifold_types::Bet>>,
 }
 
@@ -144,7 +142,7 @@ impl MarketHandler {
             while !halt_flag_clone.load(Ordering::SeqCst) {
                 let mut params = query_params.clone();
                 params.push(("after".to_string(), most_recent_id.clone()));
-                println!("params: {:?}", params);
+
                 let resp = get_endpoint("bets".to_string(), &params);
 
                 let bets = resp
@@ -159,7 +157,6 @@ impl MarketHandler {
                 }
 
                 if bets.len() > 0 {
-                    println!("Received {:?}", bets);
                     most_recent_id = bets.last().unwrap().id.clone();
                 }
 
