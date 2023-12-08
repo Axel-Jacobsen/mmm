@@ -106,7 +106,7 @@ impl MarketHandler {
 
     pub fn get_bet_stream_for_market_id(&self, market_id: String) {
         let resp = self
-            .get_endpoint(format!("bets"), &[("contractId", market_id.as_str())])
+            .get_endpoint("bets".to_string(), &[("contractId", market_id.as_str())])
             .unwrap();
 
         let bets = resp.json::<Vec<manifold_types::Bet>>().unwrap();
