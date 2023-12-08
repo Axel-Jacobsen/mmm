@@ -22,12 +22,23 @@ fn get_env_key(key: &str) -> Result<String, String> {
     }
 }
 
+pub async fn get_endpoint(
+    endpoint: String,
+    query_params: &[(String, String)],
+) -> Result<reqwest::Response, reqwest::Error> {
+    let client = reqwest::Client::new();
+
+    let req = client
+        .get(format!("https://manifold.markets/api/v0/{endpoint}"))
+        .query(&query_params)
+        .header("Authorization", get_env_key("MANIFOLD_KEY").unwrap());
+
+    req.send().await
+}
+
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct MarketHandler {
-    api_key: String,
-    api_url: String,
-
     api_read_limit_per_s: u32,
     api_write_limit_per_min: u32,
 
@@ -39,12 +50,9 @@ pub struct MarketHandler {
 #[allow(dead_code)]
 impl MarketHandler {
     pub fn new() -> Self {
-        let api_key = get_env_key("MANIFOLD_KEY").unwrap();
         let halt_flag = Arc::new(AtomicBool::new(false));
 
         Self {
-            api_key,
-            api_url: String::from("https://api.manifold.markets"),
             api_read_limit_per_s: 100,
             api_write_limit_per_min: 10,
             halt_flag,
@@ -52,42 +60,29 @@ impl MarketHandler {
         }
     }
 
-    pub fn halt(self) {
+    pub fn halt(&self) {
         self.halt_flag.store(true, Ordering::SeqCst);
     }
 
-    pub async fn get_endpoint(
-        &self,
-        endpoint: String,
-        query_params: &[(&str, &str)],
-    ) -> Result<reqwest::Response, reqwest::Error> {
-        let client = reqwest::Client::new();
-
-        let req = client
-            .get(format!("https://manifold.markets/api/v0/{endpoint}"))
-            .query(&query_params)
-            .header("Authorization", get_env_key("MANIFOLD_KEY").unwrap());
-
-        req.send().await
-    }
-
     pub async fn check_alive(&self) -> bool {
-        let resp = self.get_endpoint("me".to_string(), &[]).await.unwrap();
+        let resp = get_endpoint("me".to_string(), &[]).await.unwrap();
 
         resp.json::<manifold_types::User>().await.is_ok()
     }
 
     pub async fn market_search(
         &self,
-        term: &str,
+        term: String,
     ) -> Result<Option<manifold_types::LiteMarket>, String> {
-        let resp = self
-            .get_endpoint(
-                String::from("search-markets"),
-                &[("term", term), ("limit", "1")],
-            )
-            .await
-            .unwrap();
+        let resp = get_endpoint(
+            "search-markets".to_string(),
+            &[
+                ("term".to_string(), term),
+                ("limit".to_string(), "1".to_string()),
+            ],
+        )
+        .await
+        .unwrap();
 
         match resp.json::<Vec<manifold_types::LiteMarket>>().await {
             Ok(mut markets) => {
@@ -102,53 +97,70 @@ impl MarketHandler {
     }
 
     pub async fn get_bet_stream_for_market_id(
-        mut self,
+        &mut self,
         market_id: String,
     ) -> Receiver<manifold_types::Bet> {
-        let rx = if self.bet_channels.contains_key(&market_id) {
-            self.bet_channels[&market_id].subscribe()
+        self.get_bet_stream(
+            market_id.clone(),
+            vec![("market_id".to_string(), market_id)],
+        )
+        .await
+    }
+
+    pub async fn get_bet_stream(
+        &mut self,
+        stream_key: String,
+        query_params: Vec<(String, String)>,
+    ) -> Receiver<manifold_types::Bet> {
+        let rx = if self.bet_channels.contains_key(&stream_key) {
+            self.bet_channels[&stream_key].subscribe()
         } else {
             let (tx, rx) = channel::<manifold_types::Bet>(4);
-            self.bet_channels.entry(market_id.clone()).or_insert(tx);
+            self.bet_channels
+                .entry(stream_key.to_string())
+                .or_insert(tx);
             rx
         };
 
-        let most_recent_id = self
-            .get_endpoint(
-                "bets".to_string(),
-                &[("contractId", &market_id), ("limit", "1")],
-            )
+        let mut base_query = query_params.to_vec();
+        base_query.push(("limit".to_string(), "2".to_string()));
+
+        let mut most_recent_id = get_endpoint("bets".to_string(), &base_query)
             .await
-            .unwrap()
+            .expect("Couldn't get most recent bet from api")
             .json::<Vec<manifold_types::Bet>>()
             .await
-            .unwrap()
+            .expect("Couldn't convert bet json into Bet")
             .pop()
-            .unwrap()
+            .expect("Couldn't pop a bet from bets")
             .id;
 
         // Spawn the task that gets messages from the api and
         // sends them to the channel
-        let tx_clone = self.bet_channels[&market_id].clone();
-        tokio::spawn(async move {
-            while !self.halt_flag.load(Ordering::SeqCst) {
-                let params = &[
-                    ("contractId", market_id.as_str()),
-                    ("after", most_recent_id.as_str()),
-                ];
-                let resp = self.get_endpoint("bets".to_string(), params);
+        let tx_clone = self.bet_channels[&stream_key].clone();
+        let halt_flag_clone = self.halt_flag.clone();
 
-                for bet in resp
+        tokio::spawn(async move {
+            while !halt_flag_clone.load(Ordering::SeqCst) {
+                let mut params = query_params.clone();
+                params.push(("after".to_string(), most_recent_id.clone()));
+                println!("params: {:?}", params);
+                let resp = get_endpoint("bets".to_string(), &params);
+
+                let bets = resp
                     .await
                     .unwrap()
                     .json::<Vec<manifold_types::Bet>>()
                     .await
-                    .unwrap()
-                {
-                    tx_clone.send(bet).unwrap();
+                    .unwrap();
+
+                for bet in bets.iter() {
+                    tx_clone.send(bet.clone()).expect("Couldn't send bet");
                 }
+
+                most_recent_id = bets.last().unwrap().id.clone();
+
                 sleep(Duration::from_secs(1)).await;
-                println!("waking up");
             }
         });
 
