@@ -3,11 +3,10 @@
 /// keep track of information that the bots want, make bets
 /// that the bots want, and make sure limits (api limits, risk
 /// limits) are within bounds.
+
 use std::env;
 use std::thread::sleep;
 use std::time::Duration;
-
-use serde_json::{self, Value};
 
 mod manifold_types;
 
@@ -41,98 +40,59 @@ impl MarketHandler {
         }
     }
 
-    pub fn get_endpoint(
+    pub async fn get_endpoint(
         &self,
         endpoint: String,
         query_params: &[(&str, &str)],
-    ) -> Result<reqwest::blocking::Response, reqwest::Error> {
-        let client = reqwest::blocking::Client::new();
+    ) -> Result<reqwest::Response, reqwest::Error> {
+        let client = reqwest::Client::new();
 
         let req = client
             .get(format!("https://manifold.markets/api/v0/{endpoint}"))
             .query(&query_params)
             .header("Authorization", get_env_key("MANIFOLD_KEY").unwrap());
 
-        req.send()
+        req.send().await
     }
 
-    pub fn check_alive(&self) -> bool {
-        let resp = self.get_endpoint("me".to_string(), &[]).unwrap();
+    pub async fn check_alive(&self) -> bool {
+        let resp = self.get_endpoint("me".to_string(), &[]).await.unwrap();
 
-        resp.json::<manifold_types::User>().is_ok()
+        resp.json::<manifold_types::User>().await.is_ok()
     }
 
-    pub fn market_search(&self, term: &str) -> Option<manifold_types::LiteMarket> {
+    pub async fn market_search(&self, term: &str) -> Result<Option<manifold_types::LiteMarket>, String> {
         let resp = self
             .get_endpoint(
                 String::from("search-markets"),
                 &[("term", term), ("limit", "1")],
-            )
+            ).await
             .unwrap();
 
-        match resp.json::<Vec<manifold_types::LiteMarket>>() {
+        match resp.json::<Vec<manifold_types::LiteMarket>>().await {
             Ok(mut markets) => {
                 if markets.len() == 1 {
-                    markets.pop()
+                    Ok(markets.pop())
                 } else {
-                    None
+                    Ok(None)
                 }
             }
-            Err(e) => {
-                // this code here is purely for debugging, and hopefully is like never called
-                let resp = self
-                    .get_endpoint(
-                        String::from("search-markets"),
-                        &[("term", term), ("limit", "1")],
-                    )
-                    .unwrap();
-
-                let json_array = serde_json::from_str::<Vec<Value>>(&resp.text().unwrap());
-
-                let mut markets = Vec::new();
-
-                for item in json_array.unwrap() {
-                    match serde_json::from_value::<manifold_types::LiteMarket>(item.clone()) {
-                        Ok(market) => markets.push(market),
-                        Err(_) => {
-                            println!("Failed to decode: {:?}", item);
-                        }
-                    }
-                }
-                panic!("Failed to decode: {:?}", e);
-            }
+            Err(e) => Err(format!("{e}")),
         }
     }
 
-    pub fn get_bet_stream_for_market_id(&self, market_id: String) {
+    pub async fn get_bet_stream_for_market_id(&self, market_id: String) {
         let resp = self
             .get_endpoint("bets".to_string(), &[("contractId", market_id.as_str())])
+            .await
             .unwrap();
 
-        let bets = resp.json::<Vec<manifold_types::Bet>>().unwrap();
+        let bets = resp.json::<Vec<manifold_types::Bet>>().await.unwrap();
         for bet in bets {
             assert!(bet.contract_id == market_id);
         }
     }
 
-    pub fn run(&self, endpoints: Vec<String>) {
-        loop {
-            for endpoint in &endpoints {
-                // crummy way to avoid api lims
-                sleep(Duration::from_secs(1) / self.api_read_limit_per_s);
-
-                let resp = self
-                    .get_endpoint(endpoint.to_string(), &[("limit", "1")])
-                    .unwrap();
-
-                if resp.status().is_success() {
-                    println!("{}", resp.text().unwrap());
-                } else {
-                    println!("endpoint {endpoint} failed {:?}", resp);
-                }
-            }
-        }
-    }
 }
 
 #[cfg(test)]
