@@ -11,8 +11,10 @@ async fn main() {
 
     match market.await {
         Ok(Some(m)) => {
-            market_handler.get_bet_stream_for_market_id(m.id.to_string()).await;
-        },
+            market_handler
+                .get_bet_stream_for_market_id(m.id.to_string())
+                .await;
+        }
         Ok(None) => println!("No markets found"),
         Err(e) => println!("{:?}", e),
     }

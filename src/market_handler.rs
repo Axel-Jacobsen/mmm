@@ -3,10 +3,7 @@
 /// keep track of information that the bots want, make bets
 /// that the bots want, and make sure limits (api limits, risk
 /// limits) are within bounds.
-
 use std::env;
-use std::thread::sleep;
-use std::time::Duration;
 
 mod manifold_types;
 
@@ -61,12 +58,16 @@ impl MarketHandler {
         resp.json::<manifold_types::User>().await.is_ok()
     }
 
-    pub async fn market_search(&self, term: &str) -> Result<Option<manifold_types::LiteMarket>, String> {
+    pub async fn market_search(
+        &self,
+        term: &str,
+    ) -> Result<Option<manifold_types::LiteMarket>, String> {
         let resp = self
             .get_endpoint(
                 String::from("search-markets"),
                 &[("term", term), ("limit", "1")],
-            ).await
+            )
+            .await
             .unwrap();
 
         match resp.json::<Vec<manifold_types::LiteMarket>>().await {
@@ -92,7 +93,6 @@ impl MarketHandler {
             assert!(bet.contract_id == market_id);
         }
     }
-
 }
 
 #[cfg(test)]
@@ -102,29 +102,31 @@ mod tests {
 
     use serde_json::{self, Value};
 
-    #[test]
-    fn build_a_market_handler() {
+    #[tokio::test]
+    async fn build_a_market_handler() {
         let market_handler = MarketHandler::new();
-        assert!(market_handler.check_alive());
+        assert!(market_handler.check_alive().await);
     }
 
-    #[test]
-    fn test_parse_markets() {
+    #[tokio::test]
+    async fn test_parse_markets() {
         let market_handler = MarketHandler::new();
         let all_markets = market_handler
             .get_endpoint("markets".to_string(), &[("limit", "1000")])
+            .await
             .unwrap();
 
         // testing that we can parse markets correctly
-        match all_markets.json::<Vec<manifold_types::LiteMarket>>() {
+        match all_markets.json::<Vec<manifold_types::LiteMarket>>().await {
             Ok(_markets) => (),
             Err(e) => {
                 // this code here is purely for debugging, and hopefully is like never called
                 let resp = market_handler
                     .get_endpoint("markets".to_string(), &[("limit", "1000")])
+                    .await
                     .unwrap();
 
-                let json_array = serde_json::from_str::<Vec<Value>>(&resp.text().unwrap());
+                let json_array = serde_json::from_str::<Vec<Value>>(&resp.text().await.unwrap());
 
                 let mut markets = Vec::new();
 
