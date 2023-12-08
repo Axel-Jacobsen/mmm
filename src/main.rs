@@ -6,16 +6,20 @@ async fn main() {
     let market_handler = market_handler::MarketHandler::new();
     assert!(market_handler.check_alive().await);
 
-    let market = market_handler.market_search(
+    let maybe_some_market = market_handler.market_search(
         "(M25000 subsidy!) Will a prompt that enables GPT-4 to solve easy Sudoku puzzles be found? (2023)");
 
-    match market.await {
+    let mut rx = match maybe_some_market.await {
         Ok(Some(m)) => {
             market_handler
                 .get_bet_stream_for_market_id(m.id.to_string())
-                .await;
+                .await
         }
-        Ok(None) => println!("No markets found"),
-        Err(e) => println!("{:?}", e),
+        Ok(None) => panic!("No markets found"),
+        Err(e) => panic!("{:?}", e),
+    };
+
+    loop {
+        println!("{:?}", rx.recv().await);
     }
 }

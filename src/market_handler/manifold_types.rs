@@ -319,7 +319,7 @@ pub struct PeriodMetric {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Bet {
     /// From https://github.com/manifoldmarkets/manifold/blob/main/common/src/bet.ts
-    id: String,
+    pub id: String,
 
     #[serde(rename = "userId")]
     user_id: String,

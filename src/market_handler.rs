@@ -9,6 +9,7 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
 };
+use tokio::time::{sleep, Duration};
 
 use tokio::sync::broadcast::{channel, Receiver, Sender};
 
@@ -100,19 +101,7 @@ impl MarketHandler {
         }
     }
 
-    pub async fn get_bet_stream_for_market_id(&self, market_id: String) {
-        let resp = self
-            .get_endpoint("bets".to_string(), &[("contractId", market_id.as_str())])
-            .await
-            .unwrap();
-
-        let bets = resp.json::<Vec<manifold_types::Bet>>().await.unwrap();
-        for bet in bets {
-            assert!(bet.contract_id == market_id);
-        }
-    }
-
-    pub async fn get_bets_stream_for_market_id(
+    pub async fn get_bet_stream_for_market_id(
         mut self,
         market_id: String,
     ) -> Receiver<manifold_types::Bet> {
@@ -124,12 +113,29 @@ impl MarketHandler {
             rx
         };
 
+        let most_recent_id = self
+            .get_endpoint(
+                "bets".to_string(),
+                &[("contractId", &market_id), ("limit", "1")],
+            )
+            .await
+            .unwrap()
+            .json::<Vec<manifold_types::Bet>>()
+            .await
+            .unwrap()
+            .pop()
+            .unwrap()
+            .id;
+
         // Spawn the task that gets messages from the api and
-        // sends them to the channell
+        // sends them to the channel
         let tx_clone = self.bet_channels[&market_id].clone();
         tokio::spawn(async move {
             while !self.halt_flag.load(Ordering::SeqCst) {
-                let params = &[("contractId", market_id.as_str())];
+                let params = &[
+                    ("contractId", market_id.as_str()),
+                    ("after", most_recent_id.as_str()),
+                ];
                 let resp = self.get_endpoint("bets".to_string(), params);
 
                 for bet in resp
@@ -141,6 +147,8 @@ impl MarketHandler {
                 {
                     tx_clone.send(bet).unwrap();
                 }
+                sleep(Duration::from_secs(1)).await;
+                println!("waking up");
             }
         });
 
