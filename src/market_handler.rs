@@ -1,9 +1,16 @@
+use std::collections::HashMap;
 /// This does a lot of work!
 /// The job of this file is to interact w/ the Manifold API,
 /// keep track of information that the bots want, make bets
 /// that the bots want, and make sure limits (api limits, risk
 /// limits) are within bounds.
 use std::env;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
+
+use tokio::sync::broadcast::{channel, Receiver, Sender};
 
 mod manifold_types;
 
@@ -22,19 +29,30 @@ pub struct MarketHandler {
 
     api_read_limit_per_s: u32,
     api_write_limit_per_min: u32,
+
+    halt_flag: Arc<AtomicBool>,
+
+    bet_channels: HashMap<String, Sender<manifold_types::Bet>>,
 }
 
 #[allow(dead_code)]
 impl MarketHandler {
     pub fn new() -> Self {
         let api_key = get_env_key("MANIFOLD_KEY").unwrap();
+        let halt_flag = Arc::new(AtomicBool::new(false));
 
         Self {
             api_key,
             api_url: String::from("https://api.manifold.markets"),
             api_read_limit_per_s: 100,
             api_write_limit_per_min: 10,
+            halt_flag: halt_flag,
+            bet_channels: HashMap::new(),
         }
+    }
+
+    pub fn halt(self) {
+        self.halt_flag.store(true, Ordering::SeqCst);
     }
 
     pub async fn get_endpoint(
@@ -92,6 +110,42 @@ impl MarketHandler {
         for bet in bets {
             assert!(bet.contract_id == market_id);
         }
+    }
+
+    pub async fn get_bets_stream_for_market_id(
+        mut self,
+        market_id: String,
+    ) -> Receiver<manifold_types::Bet> {
+        let rx;
+        if self.bet_channels.contains_key(&market_id) {
+            rx = self.bet_channels[&market_id].subscribe();
+        } else {
+            let (tx, rx_inner) = channel::<manifold_types::Bet>(4);
+            self.bet_channels.entry(market_id.clone()).or_insert(tx);
+            rx = rx_inner;
+        }
+
+        // Spawn the task that gets messages from the api and
+        // sends them to the channell
+        let tx_clone = self.bet_channels[&market_id].clone();
+        tokio::spawn(async move {
+            while !self.halt_flag.load(Ordering::SeqCst) {
+                let params = &[("contractId", market_id.as_str())];
+                let resp = self.get_endpoint("bets".to_string(), params);
+
+                for bet in resp
+                    .await
+                    .unwrap()
+                    .json::<Vec<manifold_types::Bet>>()
+                    .await
+                    .unwrap()
+                {
+                    tx_clone.send(bet).unwrap();
+                }
+            }
+        });
+
+        return rx;
     }
 }
 
