@@ -316,18 +316,21 @@ pub struct PeriodMetric {
 }
 
 /// Represents a bet
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Bet {
     /// From https://github.com/manifoldmarkets/manifold/blob/main/common/src/bet.ts
     id: String,
+
     #[serde(rename = "userId")]
     user_id: String,
 
     // denormalized for bet lists (whatever that means)
     #[serde(rename = "userAvatarUrl", skip_serializing_if = "Option::is_none")]
     user_avatar_url: Option<String>,
+
     #[serde(rename = "userName", skip_serializing_if = "Option::is_none")]
     user_name: Option<String>,
+
     #[serde(rename = "userUsername", skip_serializing_if = "Option::is_none")]
     user_username: Option<String>,
 
@@ -402,7 +405,7 @@ pub struct Bet {
 }
 
 /// Represents a sale in a bet
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Sale {
     /// Amount user makes from sale
     amount: f64,
@@ -433,7 +436,7 @@ pub struct LimitBet {
 }
 
 /// Properties specific to a limit bet
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct LimitProps {
     /// Amount of mana in the order
     #[serde(rename = "orderAmount")]
@@ -447,7 +450,7 @@ pub struct LimitProps {
     /// Whether to prevent any further fills.
     #[serde(rename = "isCancelled")]
     is_cancelled: bool,
-    /// A record of each transaction that partially (or fully) fills the orderAmount.
+    /// A record of each transaction that partially (or fully) fills the order amount.
     fills: Vec<Fill>,
     /// ms since epoch. Optional.
     #[serde(rename = "expiresAt", skip_serializing_if = "Option::is_none")]
@@ -455,7 +458,7 @@ pub struct LimitProps {
 }
 
 /// Represents a fill in a bet
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Fill {
     /// The id the bet matched against, or null if the bet was matched by the pool.
     #[serde(rename = "matchedBetId")]
@@ -472,7 +475,7 @@ pub struct Fill {
     is_sale: Option<bool>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Fees {
     /// Fee for the creator
     #[serde(rename = "creatorFee")]
@@ -487,7 +490,7 @@ pub struct Fees {
     liquidity_fee: f64,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "lowercase")]
 pub enum Visibility {
     Public,
