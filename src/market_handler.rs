@@ -145,7 +145,7 @@ impl MarketHandler {
             }
         });
 
-        return rx;
+        rx
     }
 }
 
