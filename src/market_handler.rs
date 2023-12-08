@@ -46,7 +46,7 @@ impl MarketHandler {
             api_url: String::from("https://api.manifold.markets"),
             api_read_limit_per_s: 100,
             api_write_limit_per_min: 10,
-            halt_flag: halt_flag,
+            halt_flag,
             bet_channels: HashMap::new(),
         }
     }
@@ -116,14 +116,13 @@ impl MarketHandler {
         mut self,
         market_id: String,
     ) -> Receiver<manifold_types::Bet> {
-        let rx;
-        if self.bet_channels.contains_key(&market_id) {
-            rx = self.bet_channels[&market_id].subscribe();
+        let rx = if self.bet_channels.contains_key(&market_id) {
+            self.bet_channels[&market_id].subscribe()
         } else {
-            let (tx, rx_inner) = channel::<manifold_types::Bet>(4);
+            let (tx, rx) = channel::<manifold_types::Bet>(4);
             self.bet_channels.entry(market_id.clone()).or_insert(tx);
-            rx = rx_inner;
-        }
+            rx
+        };
 
         // Spawn the task that gets messages from the api and
         // sends them to the channell
