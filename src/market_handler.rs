@@ -102,7 +102,7 @@ impl MarketHandler {
     ) -> Receiver<manifold_types::Bet> {
         self.get_bet_stream(
             market_id.clone(),
-            vec![("market_id".to_string(), market_id)],
+            vec![("contractId".to_string(), market_id)],
         )
         .await
     }
@@ -123,14 +123,14 @@ impl MarketHandler {
         };
 
         let mut base_query = query_params.to_vec();
-        base_query.push(("limit".to_string(), "2".to_string()));
+        base_query.push(("limit".to_string(), "1".to_string()));
 
         let mut most_recent_id = get_endpoint("bets".to_string(), &base_query)
             .await
             .expect("Couldn't get most recent bet from api")
             .json::<Vec<manifold_types::Bet>>()
             .await
-            .expect("Couldn't convert bet json into Bet")
+            .expect("Couldn't convert json into Bet")
             .pop()
             .expect("Couldn't pop a bet from bets")
             .id;
@@ -149,16 +149,19 @@ impl MarketHandler {
 
                 let bets = resp
                     .await
-                    .unwrap()
+                    .expect("Couldn't get bets from api")
                     .json::<Vec<manifold_types::Bet>>()
                     .await
-                    .unwrap();
+                    .expect("Couldn't convert json into Bet");
 
                 for bet in bets.iter() {
                     tx_clone.send(bet.clone()).expect("Couldn't send bet");
                 }
 
-                most_recent_id = bets.last().unwrap().id.clone();
+                if bets.len() > 0 {
+                    println!("Received {:?}", bets);
+                    most_recent_id = bets.last().unwrap().id.clone();
+                }
 
                 sleep(Duration::from_secs(1)).await;
             }
