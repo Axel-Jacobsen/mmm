@@ -1,14 +1,9 @@
-/// This does a lot of work!
-/// The job of this file is to interact w/ the Manifold API,
-/// keep track of information that the bots want, make bets
-/// that the bots want, and make sure limits (api limits, risk
-/// limits) are within bounds.
+use std::collections::HashMap;
 use std::env;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
 };
-use std::collections::HashMap;
 
 use log::{error, info};
 use tokio::sync::broadcast::{channel, Receiver, Sender};
@@ -98,7 +93,7 @@ impl MarketHandler {
         .await
         .unwrap();
 
-        match resp.json::<Vec<manifold_types::LiteMarket>>().await {
+        match response_into::<Vec<manifold_types::LiteMarket>>(resp).await {
             Ok(mut markets) => {
                 if markets.len() == 1 {
                     Ok(markets.pop())
@@ -165,12 +160,11 @@ impl MarketHandler {
                 let mut params = query_params.clone();
                 params.push(("after".to_string(), most_recent_id.clone()));
 
-                let resp = get_endpoint("bets".to_string(), &params);
-
-                let bets = resp
+                let resp = get_endpoint("bets".to_string(), &params)
                     .await
-                    .expect("Couldn't get bets from api")
-                    .json::<Vec<manifold_types::Bet>>()
+                    .expect("api error");
+
+                let bets = response_into::<Vec<manifold_types::Bet>>(resp)
                     .await
                     .expect("Couldn't convert json into Bet");
 
