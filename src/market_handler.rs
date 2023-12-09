@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 /// This does a lot of work!
 /// The job of this file is to interact w/ the Manifold API,
 /// keep track of information that the bots want, make bets
@@ -9,6 +8,7 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
 };
+use std::collections::HashMap;
 
 use log::{error, info};
 use tokio::sync::broadcast::{channel, Receiver, Sender};
