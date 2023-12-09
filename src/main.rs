@@ -1,17 +1,32 @@
+use log::{debug, info, warn};
+
 mod bots;
 mod market_handler;
 
-fn main() {
-    let market_handler = market_handler::MarketHandler::new();
-    assert!(market_handler.check_alive());
+#[tokio::main]
+async fn main() {
+    env_logger::init();
 
-    let market = market_handler.market_search(
-        "(M25000 subsidy!) Will a prompt that enables GPT-4 to solve easy Sudoku puzzles be found? (2023)");
+    info!("Starting!");
 
-    match market {
-        Some(m) => {
-            market_handler.get_bet_stream_for_market_id(m.id.to_string());
+    let mut market_handler = market_handler::MarketHandler::new();
+
+    assert!(market_handler.check_alive().await, "Manifold API is down");
+
+    let mut rx = market_handler
+        .get_bet_stream("all_bets".to_string(), vec![])
+        .await;
+
+    let mut i: u64 = 0;
+    loop {
+        match rx.recv().await {
+            Ok(bet) => {
+                debug!("{i} {:?}", bet);
+                i += 1;
+            }
+            Err(e) => {
+                warn!("{e}");
+            }
         }
-        None => println!("No markets found"),
     }
 }
