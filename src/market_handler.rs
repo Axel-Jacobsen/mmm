@@ -24,7 +24,7 @@ fn get_env_key(key: &str) -> Result<String, String> {
     }
 }
 
-pub async fn get_endpoint(
+async fn get_endpoint(
     endpoint: String,
     query_params: &[(String, String)],
 ) -> Result<reqwest::Response, reqwest::Error> {
