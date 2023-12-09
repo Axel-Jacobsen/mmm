@@ -9,10 +9,12 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
 };
+
+use log::{debug, error, info, log_enabled, Level};
+use tokio::sync::broadcast::{channel, Receiver, Sender};
 use tokio::time::{sleep, Duration};
 
-use tokio::sync::broadcast::{channel, Receiver, Sender};
-
+mod errors;
 mod manifold_types;
 
 fn get_env_key(key: &str) -> Result<String, String> {
@@ -34,6 +36,20 @@ pub async fn get_endpoint(
         .header("Authorization", get_env_key("MANIFOLD_KEY").unwrap());
 
     req.send().await
+}
+
+async fn response_into<T: serde::de::DeserializeOwned>(
+    resp: reqwest::Response,
+) -> Result<T, errors::ReqwestResponseParsing> {
+    let body = resp.text().await?;
+    let from_json = serde_json::from_str::<T>(&body);
+    match from_json {
+        Ok(t) => Ok(t),
+        Err(e) => {
+            error!("Couldn't parse response {body}");
+            Err(errors::ReqwestResponseParsing::SerdeError(e))
+        }
+    }
 }
 
 #[allow(dead_code)]
@@ -110,6 +126,11 @@ impl MarketHandler {
         stream_key: String,
         query_params: Vec<(String, String)>,
     ) -> Receiver<manifold_types::Bet> {
+        info!(
+            "Getting bet stream for {stream_key} params {:?}",
+            query_params
+        );
+
         let rx = if self.bet_channels.contains_key(&stream_key) {
             self.bet_channels[&stream_key].subscribe()
         } else {
@@ -123,14 +144,15 @@ impl MarketHandler {
         let mut base_query = query_params.to_vec();
         base_query.push(("limit".to_string(), "1".to_string()));
 
-        let mut most_recent_id = get_endpoint("bets".to_string(), &base_query)
+        let response = get_endpoint("bets".to_string(), &base_query)
             .await
-            .expect("Couldn't get most recent bet from api")
-            .json::<Vec<manifold_types::Bet>>()
+            .expect("Couldn't get most recent bet from api");
+
+        let mut most_recent_id = response_into::<Vec<manifold_types::Bet>>(response)
             .await
             .expect("Couldn't convert json into Bet")
             .pop()
-            .expect("Couldn't pop a bet from bets")
+            .expect("no bets placed yet")
             .id;
 
         // Spawn the task that gets messages from the api and
