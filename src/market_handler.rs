@@ -134,7 +134,7 @@ impl MarketHandler {
         let rx = if self.bet_channels.contains_key(&stream_key) {
             self.bet_channels[&stream_key].subscribe()
         } else {
-            let (tx, rx) = channel::<manifold_types::Bet>(4);
+            let (tx, rx) = channel::<manifold_types::Bet>(32);
             self.bet_channels
                 .entry(stream_key.to_string())
                 .or_insert(tx);
@@ -182,7 +182,7 @@ impl MarketHandler {
                     most_recent_id = bets.last().unwrap().id.clone();
                 }
 
-                sleep(Duration::from_secs(1)).await;
+                sleep(Duration::from_millis(500)).await;
             }
         });
 
