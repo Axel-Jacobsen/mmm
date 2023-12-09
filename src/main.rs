@@ -1,4 +1,4 @@
-use log::{debug, info};
+use log::{debug, info, warn};
 
 mod bots;
 mod market_handler;
@@ -19,7 +19,14 @@ async fn main() {
 
     let mut i: u64 = 0;
     loop {
-        debug!("{i} {:?}", rx.recv().await);
-        i += 1;
+        match rx.recv().await {
+            Ok(bet) => {
+                debug!("{i} {:?}", bet);
+                i += 1;
+            }
+            Err(e) => {
+                warn!("{e}");
+            }
+        }
     }
 }
