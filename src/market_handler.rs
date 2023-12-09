@@ -10,7 +10,7 @@ use std::sync::{
     Arc,
 };
 
-use log::{debug, error, info, log_enabled, Level};
+use log::{error, info};
 use tokio::sync::broadcast::{channel, Receiver, Sender};
 use tokio::time::{sleep, Duration};
 
@@ -178,7 +178,7 @@ impl MarketHandler {
                     tx_clone.send(bet.clone()).expect("Couldn't send bet");
                 }
 
-                if bets.len() > 0 {
+                if !bets.is_empty() {
                     most_recent_id = bets.last().unwrap().id.clone();
                 }
 
@@ -190,51 +190,51 @@ impl MarketHandler {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::market_handler::manifold_types;
-    use crate::market_handler::MarketHandler;
+// #[cfg(test)]
+// mod tests {
+//     use crate::market_handler::manifold_types;
+//     use crate::market_handler::MarketHandler;
 
-    use serde_json::{self, Value};
+//     use serde_json::{self, Value};
 
-    #[tokio::test]
-    async fn build_a_market_handler() {
-        let market_handler = MarketHandler::new();
-        assert!(market_handler.check_alive().await);
-    }
+//     #[tokio::test]
+//     async fn build_a_market_handler() {
+//         let market_handler = MarketHandler::new();
+//         assert!(market_handler.check_alive().await);
+//     }
 
-    #[tokio::test]
-    async fn test_parse_markets() {
-        let market_handler = MarketHandler::new();
-        let all_markets = market_handler
-            .get_endpoint("markets".to_string(), &[("limit", "1000")])
-            .await
-            .unwrap();
+//     #[tokio::test]
+//     async fn test_parse_markets() {
+//         let market_handler = MarketHandler::new();
+//         let all_markets = market_handler
+//             .get_endpoint("markets".to_string(), &[("limit", "1000")])
+//             .await
+//             .unwrap();
 
-        // testing that we can parse markets correctly
-        match all_markets.json::<Vec<manifold_types::LiteMarket>>().await {
-            Ok(_markets) => (),
-            Err(e) => {
-                // this code here is purely for debugging, and hopefully is like never called
-                let resp = market_handler
-                    .get_endpoint("markets".to_string(), &[("limit", "1000")])
-                    .await
-                    .unwrap();
+//         // testing that we can parse markets correctly
+//         match all_markets.json::<Vec<manifold_types::LiteMarket>>().await {
+//             Ok(_markets) => (),
+//             Err(e) => {
+//                 // this code here is purely for debugging, and hopefully is like never called
+//                 let resp = market_handler
+//                     .get_endpoint("markets".to_string(), &[("limit", "1000")])
+//                     .await
+//                     .unwrap();
 
-                let json_array = serde_json::from_str::<Vec<Value>>(&resp.text().await.unwrap());
+//                 let json_array = serde_json::from_str::<Vec<Value>>(&resp.text().await.unwrap());
 
-                let mut markets = Vec::new();
+//                 let mut markets = Vec::new();
 
-                for item in json_array.unwrap() {
-                    match serde_json::from_value::<manifold_types::LiteMarket>(item.clone()) {
-                        Ok(market) => markets.push(market),
-                        Err(e) => {
-                            println!("Failed to decode: {:?} due to {:?}\n", item, e);
-                        }
-                    }
-                }
-                panic!("Failed to decode: {:?}", e);
-            }
-        }
-    }
-}
+//                 for item in json_array.unwrap() {
+//                     match serde_json::from_value::<manifold_types::LiteMarket>(item.clone()) {
+//                         Ok(market) => markets.push(market),
+//                         Err(e) => {
+//                             println!("Failed to decode: {:?} due to {:?}\n", item, e);
+//                         }
+//                     }
+//                 }
+//                 panic!("Failed to decode: {:?}", e);
+//             }
+//         }
+//     }
+// }

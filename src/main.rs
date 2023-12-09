@@ -1,4 +1,4 @@
-use log::{debug, error, info, log_enabled, Level};
+use log::{info};
 
 mod bots;
 mod market_handler;
