@@ -110,7 +110,7 @@ pub struct LiteMarket {
     created_time: u64,
 
     /// The question!
-    question: String,
+    pub question: String,
 
     /// Note: This url always points to <https://manifold.markets>, regardless of what instance the api is running on.
     /// This url includes the creator's username, but this doesn't need to be correct when constructing valid URLs.
@@ -186,7 +186,7 @@ pub struct LiteMarket {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Answer {
     /// Guessing on this one
-    id: String,
+    pub id: String,
 
     #[serde(rename = "createdTime")]
     created_time: u64,
@@ -204,7 +204,7 @@ pub struct Answer {
 
     #[serde(rename = "userId")]
     user_id: String,
-    probability: f64,
+    pub probability: f64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -219,7 +219,7 @@ pub struct FullMarket {
     pub lite_market: LiteMarket,
 
     /// dpm-2 markets only
-    answers: Option<Vec<Answer>>,
+    pub answers: Option<Vec<Answer>>,
 
     /// Rich text content. See https://tiptap.dev/guide/output#option-1-json
     #[serde(skip_deserializing)]
@@ -340,7 +340,7 @@ pub struct Bet {
 
     /// For multi-binary contracts. Optional.
     #[serde(rename = "answerId", skip_serializing_if = "Option::is_none")]
-    answer_id: Option<String>,
+    pub answer_id: Option<String>,
 
     #[serde(rename = "createdTime")]
     created_time: u64,
@@ -363,10 +363,10 @@ pub struct Bet {
     shares_by_outcome: Option<HashMap<String, f64>>,
 
     #[serde(rename = "probBefore")]
-    prob_before: f64,
+    pub prob_before: f64,
 
     #[serde(rename = "probAfter")]
-    prob_after: f64,
+    pub prob_after: f64,
 
     fees: Fees,
 

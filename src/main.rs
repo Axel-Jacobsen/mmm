@@ -19,7 +19,8 @@ async fn main() {
 
     let arb_market = {
         let market = market_handler.market_search(
-            "Will Republicans win Pennsylvania, Georgia in the 2024 Presidential?".to_string(),
+            "Mathematical surprises: How many of the 28 linked questions will resolve in an unexpected direction?"
+                .to_string(),
         );
 
         match market.await {
@@ -31,9 +32,12 @@ async fn main() {
         }
     };
 
-    info!("Found market {:?}", arb_market);
+    info!(
+        "Found market {}",
+        serde_json::to_string_pretty(&arb_market).unwrap()
+    );
 
-    let bot = ArbitrageBot::new(arb_market.clone());
+    let mut bot = ArbitrageBot::new(arb_market.clone());
 
     let rx = market_handler
         .get_bet_stream_for_market_id(arb_market.lite_market.id)

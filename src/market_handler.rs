@@ -5,7 +5,7 @@ use std::sync::{
     Arc,
 };
 
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use tokio::sync::broadcast::{channel, Receiver, Sender};
 use tokio::time::{sleep, Duration};
 
@@ -176,9 +176,13 @@ impl MarketHandler {
                 let mut params = query_params.clone();
                 params.push(("after".to_string(), most_recent_id.clone()));
 
-                let resp = get_endpoint("bets".to_string(), &params)
-                    .await
-                    .expect("api error");
+                let resp = match get_endpoint("bets".to_string(), &params).await {
+                    Ok(resp) => resp,
+                    Err(e) => {
+                        warn!("continuing... couldn't get most recent bet due to api error: {e}");
+                        continue;
+                    }
+                };
 
                 let bets = response_into::<Vec<manifold_types::Bet>>(resp)
                     .await
