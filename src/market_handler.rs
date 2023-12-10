@@ -33,7 +33,13 @@ async fn get_endpoint(
         .query(&query_params)
         .header("Authorization", get_env_key("MANIFOLD_KEY").unwrap());
 
-    req.send().await
+    let resp = req.send().await?;
+    if resp.status().is_success() {
+        Ok(resp)
+    } else {
+        error!("api error (bad status code) {resp:?}");
+        Err(resp.error_for_status().unwrap_err())
+    }
 }
 
 async fn response_into<T: serde::de::DeserializeOwned>(
