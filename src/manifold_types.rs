@@ -11,7 +11,7 @@ pub enum MarketOutcome {
     No,
 }
 
-#[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub enum MarketMechanism {
     #[serde(rename = "cpmm-1")]
     Cpmm,
@@ -23,7 +23,7 @@ pub enum MarketMechanism {
     None,
 }
 
-#[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub enum MarketOutcomeType {
     #[serde(rename = "BINARY")]
     Binary,
@@ -78,7 +78,7 @@ pub struct User {
     total_pnl_cached: Option<f64>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LiteMarket {
     /// from <https://docs.manifold.markets/api#get-v0markets>
 
@@ -183,7 +183,7 @@ pub struct LiteMarket {
     last_bet_time: Option<u64>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Answer {
     /// Guessing on this one
     id: String,
@@ -207,13 +207,13 @@ pub struct Answer {
     probability: f64,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JSONContent {
     // Not dealing w/ this for now
     // I don't even think it's useful
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FullMarket {
     #[serde(flatten)]
     pub lite_market: LiteMarket,

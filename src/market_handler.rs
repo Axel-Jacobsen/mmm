@@ -112,6 +112,7 @@ impl MarketHandler {
 
         let full_market =
             get_endpoint(format!("market/{}", lite_market.as_ref().unwrap().id), &[]).await?;
+
         response_into::<manifold_types::FullMarket>(full_market).await
     }
 

@@ -1,5 +1,7 @@
 use log::{debug, error, info, warn};
 
+use crate::bots::{ArbitrageBot, Bot};
+
 mod bots;
 mod manifold_types;
 mod market_handler;
@@ -30,20 +32,11 @@ async fn main() {
 
     info!("Found market {:?}", arb_market);
 
-    let mut rx = market_handler
+    let bot = ArbitrageBot::new(arb_market.clone());
+
+    let rx = market_handler
         .get_bet_stream_for_market_id(arb_market.lite_market.id)
         .await;
 
-    let mut i: u64 = 0;
-    loop {
-        match rx.recv().await {
-            Ok(bet) => {
-                debug!("{i} {:?}", bet);
-                i += 1;
-            }
-            Err(e) => {
-                warn!("{e}");
-            }
-        }
-    }
+    bot.run(rx).await;
 }
