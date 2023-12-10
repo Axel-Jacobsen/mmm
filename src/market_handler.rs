@@ -12,7 +12,6 @@ use tokio::time::{sleep, Duration};
 use crate::errors;
 use crate::manifold_types;
 
-
 fn get_env_key(key: &str) -> Result<String, String> {
     match env::var(key) {
         Ok(key) => Ok(format!("Key {key}")),
