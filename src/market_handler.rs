@@ -9,9 +9,9 @@ use log::{debug, error, info};
 use tokio::sync::broadcast::{channel, Receiver, Sender};
 use tokio::time::{sleep, Duration};
 
-mod errors;
-
+use crate::errors;
 use crate::manifold_types;
+
 
 fn get_env_key(key: &str) -> Result<String, String> {
     match env::var(key) {

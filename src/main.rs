@@ -3,6 +3,7 @@ use log::{debug, error, info, warn};
 use crate::bots::{ArbitrageBot, Bot};
 
 mod bots;
+mod errors;
 mod manifold_types;
 mod market_handler;
 
