@@ -1,8 +1,8 @@
 use log::{debug, error, info, warn};
 
 mod bots;
-mod market_handler;
 mod manifold_types;
+mod market_handler;
 
 #[tokio::main]
 async fn main() {
