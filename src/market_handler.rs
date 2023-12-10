@@ -88,6 +88,12 @@ impl MarketHandler {
         resp.json::<manifold_types::User>().await.is_ok()
     }
 
+    pub async fn whoami(&self) -> manifold_types::User {
+        let resp = get_endpoint("me".to_string(), &[]).await.unwrap();
+
+        resp.json::<manifold_types::User>().await.unwrap()
+    }
+
     pub async fn market_search(
         &self,
         term: String,
@@ -109,7 +115,10 @@ impl MarketHandler {
                     Ok(markets.pop())
                 } else {
                     error!("no markets found for term {}", &term);
-                    panic!("no markets found for term {}", &term);
+                    Err(errors::ReqwestResponseParsing::APIGeneric(format!(
+                        "no markets found for term {}",
+                        &term
+                    )))
                 }
             }
             Err(e) => Err(e),

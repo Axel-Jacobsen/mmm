@@ -48,7 +48,7 @@ pub enum MarketOutcomeType {
 pub struct User {
     /// from <https://docs.manifold.markets/api#get-v0users>
     id: String,
-    name: String,
+    pub name: String,
     username: String,
     url: Option<String>,
     #[serde(rename = "createdTime")]
@@ -69,7 +69,7 @@ pub struct User {
     #[serde(rename = "discordHandle")]
     discord_handle: Option<String>,
 
-    balance: f64,
+    pub balance: f64,
 
     #[serde(rename = "totalDeposits")]
     total_deposits: f64,
@@ -200,6 +200,7 @@ pub struct Answer {
 
     #[serde(rename = "contractId")]
     contract_id: String,
+
     text: String,
 
     #[serde(rename = "userId")]

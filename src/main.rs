@@ -17,11 +17,13 @@ async fn main() {
 
     assert!(market_handler.check_alive().await, "Manifold API is down");
 
+    let whoami = market_handler.whoami().await;
+
+    info!("Logged in as {} (balance {})", whoami.name, whoami.balance);
+
     let arb_market = {
-        let market = market_handler.market_search(
-            "Mathematical surprises: How many of the 28 linked questions will resolve in an unexpected direction?"
-                .to_string(),
-        );
+        let market = market_handler
+            .market_search("How many Twitter followers will @Mira have? (unlinked)".to_string());
 
         match market.await {
             Ok(market) => market,
