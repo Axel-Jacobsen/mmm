@@ -26,8 +26,8 @@ async fn get_endpoint(
 ) -> Result<reqwest::Response, reqwest::Error> {
     let client = reqwest::Client::new();
 
-    debug!("endpoint {endpoint}");
-    debug!("query params {query_params:?}");
+    debug!("endpoint '{endpoint}'");
+    debug!("query params '{query_params:?}'");
 
     let req = client
         .get(format!("https://manifold.markets/api/v0/{endpoint}"))
