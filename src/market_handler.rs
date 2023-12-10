@@ -5,12 +5,13 @@ use std::sync::{
     Arc,
 };
 
-use log::{error, info};
+use log::{debug, error, info};
 use tokio::sync::broadcast::{channel, Receiver, Sender};
 use tokio::time::{sleep, Duration};
 
 mod errors;
-mod manifold_types;
+
+use crate::manifold_types;
 
 fn get_env_key(key: &str) -> Result<String, String> {
     match env::var(key) {
@@ -24,6 +25,9 @@ async fn get_endpoint(
     query_params: &[(String, String)],
 ) -> Result<reqwest::Response, reqwest::Error> {
     let client = reqwest::Client::new();
+
+    debug!("endpoint {endpoint}");
+    debug!("query params {query_params:?}");
 
     let req = client
         .get(format!("https://manifold.markets/api/v0/{endpoint}"))
@@ -82,27 +86,33 @@ impl MarketHandler {
     pub async fn market_search(
         &self,
         term: String,
-    ) -> Result<Option<manifold_types::LiteMarket>, String> {
+    ) -> Result<manifold_types::FullMarket, errors::ReqwestResponseParsing> {
         let resp = get_endpoint(
             "search-markets".to_string(),
             &[
-                ("term".to_string(), term),
+                ("term".to_string(), term.clone()),
                 ("limit".to_string(), "1".to_string()),
             ],
         )
         .await
         .unwrap();
 
-        match response_into::<Vec<manifold_types::LiteMarket>>(resp).await {
+        let lite_market_req = response_into::<Vec<manifold_types::LiteMarket>>(resp).await;
+        let lite_market = match lite_market_req {
             Ok(mut markets) => {
                 if markets.len() == 1 {
                     Ok(markets.pop())
                 } else {
-                    Ok(None)
+                    error!("no markets found for term {}", &term);
+                    panic!("no markets found for term {}", &term);
                 }
             }
-            Err(e) => Err(format!("{e}")),
-        }
+            Err(e) => Err(e),
+        }?;
+
+        let full_market =
+            get_endpoint(format!("market/{}", lite_market.as_ref().unwrap().id), &[]).await?;
+        response_into::<manifold_types::FullMarket>(full_market).await
     }
 
     pub async fn get_bet_stream_for_market_id(

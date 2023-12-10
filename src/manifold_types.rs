@@ -121,7 +121,7 @@ pub struct LiteMarket {
     #[serde(rename = "outcomeType")]
     outcome_type: MarketOutcomeType,
 
-    /// dpm-2 or cpmm-1
+    /// dpm-2 or cpmm-1 or cpmm-multi-1
     mechanism: MarketMechanism,
 
     /// current probability of the market
@@ -185,19 +185,20 @@ pub struct LiteMarket {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Answer {
-    /// Guessing on this one :(
+    /// Guessing on this one
+    id: String,
 
     #[serde(rename = "createdTime")]
     created_time: u64,
 
     #[serde(rename = "avatarURL")]
-    avatar_url: String,
-    id: String,
-    username: String,
-    number: u32,
-    name: String,
+    avatar_url: Option<String>,
 
-    #[serde(rename = "contract_id")]
+    username: Option<String>,
+    number: Option<u32>,
+    name: Option<String>,
+
+    #[serde(rename = "contractId")]
     contract_id: String,
     text: String,
 
@@ -215,7 +216,7 @@ pub struct JSONContent {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct FullMarket {
     #[serde(flatten)]
-    lite_market: LiteMarket,
+    pub lite_market: LiteMarket,
 
     /// dpm-2 markets only
     answers: Option<Vec<Answer>>,
