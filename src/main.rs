@@ -17,13 +17,13 @@ async fn main() {
 
     assert!(market_handler.check_alive().await, "Manifold API is down");
 
-    let whoami = market_handler.whoami().await;
+    let me = market_handler.whoami().await;
 
-    info!("Logged in as {} (balance {})", whoami.name, whoami.balance);
+    info!("Logged in as {} (balance {})", me.name, me.balance);
 
     let arb_market = {
         let market = market_handler
-            .market_search("How many Twitter followers will @Mira have? (unlinked)".to_string());
+            .market_search("Which video game confirmed for released in Q1 2024 will average the highest score on Opencritic.com by 4/1/24?".to_string());
 
         match market.await {
             Ok(market) => market,
@@ -39,7 +39,7 @@ async fn main() {
         serde_json::to_string_pretty(&arb_market).unwrap()
     );
 
-    let mut bot = ArbitrageBot::new(arb_market.clone());
+    let mut bot = ArbitrageBot::new(me.clone(), arb_market.clone());
 
     let rx = market_handler
         .get_bet_stream_for_market_id(arb_market.lite_market.id)
