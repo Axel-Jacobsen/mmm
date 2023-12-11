@@ -14,12 +14,13 @@ pub trait Bot {
 }
 
 pub struct ArbitrageBot {
+    me: manifold_types::User,
     market: manifold_types::FullMarket,
     answers: HashMap<String, manifold_types::Answer>,
 }
 
 impl ArbitrageBot {
-    pub fn new(market: manifold_types::FullMarket) -> Self {
+    pub fn new(me: manifold_types::User, market: manifold_types::FullMarket) -> Self {
         let mut id_to_answers = HashMap::new();
         match &market.answers {
             Some(answers) => {
@@ -33,6 +34,7 @@ impl ArbitrageBot {
             }
         }
         Self {
+            me,
             market,
             answers: id_to_answers,
         }

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub enum MarketOutcome {
     // maybe not so useful, because MarketOutcome can be YES, NO,
     // and 0..\d for some reason
@@ -9,6 +9,8 @@ pub enum MarketOutcome {
     Yes,
     #[serde(rename = "NO")]
     No,
+    #[serde(untagged)]
+    Other(String),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
@@ -43,8 +45,7 @@ pub enum MarketOutcomeType {
     BountiedQuestion,
 }
 
-#[allow(dead_code)]
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct User {
     /// from <https://docs.manifold.markets/api#get-v0users>
     id: String,
@@ -315,6 +316,27 @@ pub struct PeriodMetric {
     prev_value: f64,
     /// Current value
     value: f64,
+}
+
+
+/// https://docs.manifold.markets/api#post-v0bet
+///
+#[derive(Serialize, Debug, Clone)]
+pub struct BotBet {
+    /// amount: Required. The amount to bet, in mana, before fees.
+    pub amount: f64,
+
+    /// contractId: Required. The ID of the contract (market) to bet on.
+    #[serde(rename = "contractId")]
+    pub contract_id: String,
+
+    /// outcome: Required. The outcome to bet on. For binary markets, this is YES or NO.
+    /// For free response markets, this is the ID of the free response answer.
+    /// For numeric markets, this is a string representing the target bucket,
+    /// and an additional value parameter is required which is a number representing the target value.
+    /// (Bet on numeric markets at your own peril.)
+    #[serde(flatten)]
+    pub outcome: MarketOutcome,
 }
 
 /// Represents a bet

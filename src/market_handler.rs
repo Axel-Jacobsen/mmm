@@ -5,9 +5,11 @@ use std::sync::{
     Arc,
 };
 
+use serde_json::Value;
+use serde::{Deserialize, Serialize};
 use log::{debug, error, info, warn};
-use tokio::sync::broadcast::{channel, Receiver, Sender};
 use tokio::time::{sleep, Duration};
+use tokio::sync::broadcast::{channel, Receiver, Sender};
 
 use crate::errors;
 use crate::manifold_types;
@@ -54,6 +56,12 @@ async fn response_into<T: serde::de::DeserializeOwned>(
             Err(errors::ReqwestResponseParsing::SerdeError(e))
         }
     }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct PostyPacket {
+    bot_id: String,
+    data: Option<Value>, // json value
 }
 
 #[allow(dead_code)]
@@ -139,6 +147,14 @@ impl MarketHandler {
             vec![("contractId".to_string(), market_id)],
         )
         .await
+    }
+
+    /// Initializes a tx, rx pair for the bot. The tx channel is used by the
+    /// bots send bets to the MarketHandler, and is many-to-one. The Reciever
+    /// channel is used by the MarketHandler to send the responses, and is
+    /// one-to-one. Each channel
+    pub async fn posty_init(&self, bot_id: String) -> (Sender, Reciever) {
+        self.whoami().await
     }
 
     pub async fn get_bet_stream(
