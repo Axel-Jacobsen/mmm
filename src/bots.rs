@@ -5,7 +5,6 @@ use log::{debug, info, warn};
 use tokio::sync::broadcast::Receiver;
 
 use crate::manifold_types;
-use crate::market_handler;
 
 #[async_trait]
 pub trait Bot {
