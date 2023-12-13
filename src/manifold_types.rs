@@ -318,7 +318,6 @@ pub struct PeriodMetric {
     value: f64,
 }
 
-
 /// https://docs.manifold.markets/api#post-v0bet
 ///
 #[derive(Serialize, Debug, Clone)]

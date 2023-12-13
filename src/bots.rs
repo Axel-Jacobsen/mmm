@@ -10,6 +10,7 @@ use crate::market_handler;
 #[async_trait]
 pub trait Bot {
     async fn run(&mut self, rx: Receiver<manifold_types::Bet>);
+    fn get_id(&self) -> String;
     fn close(&self);
 }
 
@@ -17,10 +18,11 @@ pub struct ArbitrageBot {
     me: manifold_types::User,
     market: manifold_types::FullMarket,
     answers: HashMap<String, manifold_types::Answer>,
+    id: String,
 }
 
 impl ArbitrageBot {
-    pub fn new(me: manifold_types::User, market: manifold_types::FullMarket) -> Self {
+    pub fn new(id: String, me: manifold_types::User, market: manifold_types::FullMarket) -> Self {
         let mut id_to_answers = HashMap::new();
         match &market.answers {
             Some(answers) => {
@@ -37,6 +39,7 @@ impl ArbitrageBot {
             me,
             market,
             answers: id_to_answers,
+            id,
         }
     }
 
@@ -59,10 +62,14 @@ impl ArbitrageBot {
                 outcome: manifold_types::MarketOutcome::Other(answer.id.clone()),
             };
             bet_map.insert(answer.id.clone(), bb);
-        };
+        }
         info!("BET MAP{:?}", bet_map);
 
-        assert!((bet_map.values().map(|bb| bb.amount).sum::<f64>() - 100.).abs() < 1e-5, "sum of bets {} != 100", bet_map.values().map(|bb| bb.amount).sum::<f64>());
+        assert!(
+            (bet_map.values().map(|bb| bb.amount).sum::<f64>() - 100.).abs() < 1e-5,
+            "sum of bets {} != 100",
+            bet_map.values().map(|bb| bb.amount).sum::<f64>()
+        );
 
         0.
     }
@@ -125,6 +132,10 @@ impl Bot for ArbitrageBot {
                 }
             }
         }
+    }
+
+    fn get_id(&self) -> String {
+        self.id
     }
 
     fn close(&self) {

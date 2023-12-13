@@ -5,11 +5,11 @@ use std::sync::{
     Arc,
 };
 
-use serde_json::Value;
-use serde::{Deserialize, Serialize};
 use log::{debug, error, info, warn};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use tokio::sync::{broadcast, mpsc};
 use tokio::time::{sleep, Duration};
-use tokio::sync::broadcast::{channel, Receiver, Sender};
 
 use crate::errors;
 use crate::manifold_types;
@@ -61,6 +61,8 @@ async fn response_into<T: serde::de::DeserializeOwned>(
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct PostyPacket {
     bot_id: String,
+    endpoint: String,
+    query_params: Vec<(String, String)>,
     data: Option<Value>, // json value
 }
 
@@ -70,7 +72,13 @@ pub struct MarketHandler {
     api_read_limit_per_s: u32,
     api_write_limit_per_min: u32,
     halt_flag: Arc<AtomicBool>,
-    bet_channels: HashMap<String, Sender<manifold_types::Bet>>,
+
+    bots_to_mh_tx: mpsc::Sender<PostyPacket>,
+    mh_to_bots_rx: mpsc::Receiver<PostyPacket>,
+
+    bot_out_channel: HashMap<String, broadcast::Sender<PostyPacket>>,
+
+    bet_channels: HashMap<String, broadcast::Sender<manifold_types::Bet>>,
 }
 
 #[allow(dead_code)]
@@ -78,10 +86,16 @@ impl MarketHandler {
     pub fn new() -> Self {
         let halt_flag = Arc::new(AtomicBool::new(false));
 
+        let (bots_to_mh_tx, mh_to_bots_rx) = mpsc::channel::<PostyPacket>(32);
+        let bot_out_channel = HashMap::new();
+
         Self {
             api_read_limit_per_s: 100,
             api_write_limit_per_min: 10,
             halt_flag,
+            bots_to_mh_tx,
+            mh_to_bots_rx,
+            bot_out_channel,
             bet_channels: HashMap::new(),
         }
     }
@@ -141,7 +155,7 @@ impl MarketHandler {
     pub async fn get_bet_stream_for_market_id(
         &mut self,
         market_id: String,
-    ) -> Receiver<manifold_types::Bet> {
+    ) -> broadcast::Receiver<manifold_types::Bet> {
         self.get_bet_stream(
             market_id.clone(),
             vec![("contractId".to_string(), market_id)],
@@ -153,15 +167,31 @@ impl MarketHandler {
     /// bots send bets to the MarketHandler, and is many-to-one. The Reciever
     /// channel is used by the MarketHandler to send the responses, and is
     /// one-to-one. Each channel
-    pub async fn posty_init(&self, bot_id: String) -> (Sender, Reciever) {
-        self.whoami().await
+    async fn posty_init(
+        &mut self,
+        bot_id: String,
+    ) -> Result<(
+        mpsc::Sender<PostyPacket>,
+        broadcast::Receiver<PostyPacket>,
+    ), String> {
+        // if id is in hashmap bail
+        if self.bot_out_channel.contains_key(&bot_id) {
+            return Err(format!("Bot {bot_id} already exists"));
+        }
+
+        let bot_to_mh_tx = self.bots_to_mh_tx.clone();
+
+        let (tx_bot, rx_bot) = broadcast::channel::<PostyPacket>(4);
+        self.bot_out_channel.insert(bot_id, tx_bot);
+
+        Ok((bot_to_mh_tx, rx_bot))
     }
 
     pub async fn get_bet_stream(
         &mut self,
         stream_key: String,
         query_params: Vec<(String, String)>,
-    ) -> Receiver<manifold_types::Bet> {
+    ) -> broadcast::Receiver<manifold_types::Bet> {
         info!(
             "Getting bet stream for {stream_key} params {:?}",
             query_params
@@ -170,7 +200,7 @@ impl MarketHandler {
         let rx = if self.bet_channels.contains_key(&stream_key) {
             self.bet_channels[&stream_key].subscribe()
         } else {
-            let (tx, rx) = channel::<manifold_types::Bet>(32);
+            let (tx, rx) = broadcast::channel::<manifold_types::Bet>(32);
             self.bet_channels
                 .entry(stream_key.to_string())
                 .or_insert(tx);
