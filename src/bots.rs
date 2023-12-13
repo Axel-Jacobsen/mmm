@@ -135,7 +135,7 @@ impl Bot for ArbitrageBot {
     }
 
     fn get_id(&self) -> String {
-        self.id
+        self.id.clone()
     }
 
     fn close(&self) {

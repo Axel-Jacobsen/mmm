@@ -170,10 +170,7 @@ impl MarketHandler {
     async fn posty_init(
         &mut self,
         bot_id: String,
-    ) -> Result<(
-        mpsc::Sender<PostyPacket>,
-        broadcast::Receiver<PostyPacket>,
-    ), String> {
+    ) -> Result<(mpsc::Sender<PostyPacket>, broadcast::Receiver<PostyPacket>), String> {
         // if id is in hashmap bail
         if self.bot_out_channel.contains_key(&bot_id) {
             return Err(format!("Bot {bot_id} already exists"));

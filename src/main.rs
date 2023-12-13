@@ -39,7 +39,7 @@ async fn main() {
         serde_json::to_string_pretty(&arb_market).unwrap()
     );
 
-    let mut bot = ArbitrageBot::new(me.clone(), arb_market.clone());
+    let mut bot = ArbitrageBot::new("bawt".to_string(), me.clone(), arb_market.clone());
 
     let rx = market_handler
         .get_bet_stream_for_market_id(arb_market.lite_market.id)
