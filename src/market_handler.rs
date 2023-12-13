@@ -59,7 +59,7 @@ async fn response_into<T: serde::de::DeserializeOwned>(
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-struct PostyPacket {
+pub struct PostyPacket {
     bot_id: String,
     endpoint: String,
     query_params: Vec<(String, String)>,
@@ -167,7 +167,7 @@ impl MarketHandler {
     /// bots send bets to the MarketHandler, and is many-to-one. The Reciever
     /// channel is used by the MarketHandler to send the responses, and is
     /// one-to-one. Each channel
-    async fn posty_init(
+    pub async fn posty_init(
         &mut self,
         bot_id: String,
     ) -> Result<(mpsc::Sender<PostyPacket>, broadcast::Receiver<PostyPacket>), String> {

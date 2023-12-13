@@ -13,3 +13,4 @@ Some* of the trading structure has been put toogether in terrible rust code.
 
 [0] https://manifold.markets/browse?topic=extreme-probabilities-project
 [1] https://manifold.markets/1941159478/will-republicans-win-pennsylvania-g
+[2] https://manifold.markets/firstuserhere/who-will-win-the-chess-champions-to#OuFcRSwEts5SEGoHk1wj

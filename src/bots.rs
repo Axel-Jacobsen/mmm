@@ -2,26 +2,29 @@ use std::collections::HashMap;
 
 use async_trait::async_trait;
 use log::{debug, info, warn};
-use tokio::sync::broadcast::Receiver;
+use tokio::sync::{broadcast, mpsc};
 
 use crate::manifold_types;
+use crate::market_handler;
 
 #[async_trait]
 pub trait Bot {
-    async fn run(&mut self, rx: Receiver<manifold_types::Bet>);
+    async fn run(&mut self, rx: broadcast::Receiver<manifold_types::Bet>);
     fn get_id(&self) -> String;
     fn close(&self);
 }
 
 pub struct ArbitrageBot {
+    id: String,
     me: manifold_types::User,
     market: manifold_types::FullMarket,
     answers: HashMap<String, manifold_types::Answer>,
-    id: String,
+    bot_to_mh_tx: mpsc::Sender<market_handler::PostyPacket>,
+    mh_to_bot_rx: broadcast::Receiver<market_handler::PostyPacket>,
 }
 
 impl ArbitrageBot {
-    pub fn new(id: String, me: manifold_types::User, market: manifold_types::FullMarket) -> Self {
+    pub fn new(id: String, me: manifold_types::User, market: manifold_types::FullMarket, bot_to_mh_tx: mpsc::Sender<market_handler::PostyPacket>, mh_to_bot_rx: broadcast::Receiver<market_handler::PostyPacket>) -> Self {
         let mut id_to_answers = HashMap::new();
         match &market.answers {
             Some(answers) => {
@@ -35,10 +38,12 @@ impl ArbitrageBot {
             }
         }
         Self {
+            id,
             me,
             market,
             answers: id_to_answers,
-            id,
+            bot_to_mh_tx,
+            mh_to_bot_rx,
         }
     }
 
@@ -76,7 +81,7 @@ impl ArbitrageBot {
 
 #[async_trait]
 impl Bot for ArbitrageBot {
-    async fn run(&mut self, mut rx: Receiver<manifold_types::Bet>) {
+    async fn run(&mut self, mut rx: broadcast::Receiver<manifold_types::Bet>) {
         info!("starting arbitrage bot");
 
         let tot_prob = self.find_arb();
