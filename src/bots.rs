@@ -12,11 +12,11 @@ pub trait Bot {
     async fn run(&mut self, rx: broadcast::Receiver<manifold_types::Bet>);
     fn get_id(&self) -> String;
     fn close(&self);
+    fn botbet_to_posty_packet(&self, bet: manifold_types::BotBet) -> market_handler::PostyPacket;
 }
 
 pub struct ArbitrageBot {
     id: String,
-    me: manifold_types::User,
     market: manifold_types::FullMarket,
     answers: HashMap<String, manifold_types::Answer>,
     bot_to_mh_tx: mpsc::Sender<market_handler::PostyPacket>,
@@ -26,7 +26,6 @@ pub struct ArbitrageBot {
 impl ArbitrageBot {
     pub fn new(
         id: String,
-        me: manifold_types::User,
         market: manifold_types::FullMarket,
         bot_to_mh_tx: mpsc::Sender<market_handler::PostyPacket>,
         mh_to_bot_rx: broadcast::Receiver<market_handler::PostyPacket>,
@@ -47,7 +46,6 @@ impl ArbitrageBot {
 
         Self {
             id,
-            me,
             market,
             answers: id_to_answers,
             bot_to_mh_tx,
@@ -74,9 +72,26 @@ impl ArbitrageBot {
                 outcome: manifold_types::MarketOutcome::Other(answer.id.clone()),
             });
         }
-        info!("bets {:?}", bets);
 
         bets
+    }
+
+    async fn make_bets(&mut self, bets: Vec<manifold_types::BotBet>) {
+        for bet in bets {
+            self.bot_to_mh_tx
+                .send(self.botbet_to_posty_packet(bet))
+                .await
+                .unwrap();
+
+            match self.mh_to_bot_rx.recv().await {
+                Ok(resp) => {
+                    info!("made bet {:?}", resp);
+                }
+                Err(e) => {
+                    error!("mh_to_bot_rx gave error {e}");
+                }
+            }
+        }
     }
 }
 
@@ -91,11 +106,17 @@ impl Bot for ArbitrageBot {
         } else {
             info!("NOT ARB OPPORTUNITY {tot_prob}");
         }
-        self.bet_amount();
+
+        let bets_to_make = self.bet_amount();
+
+        info!("want to make {} bets", bets_to_make.len());
+        debug!("bets to make {:?}", bets_to_make);
+
+        self.make_bets(bets_to_make).await;
 
         let mut i: u64 = 0;
         loop {
-            let bet = match rx.recv().await {
+            let bet: manifold_types::Bet = match rx.recv().await {
                 Ok(bet) => bet,
                 Err(e) => {
                     warn!("in ArbitrageBot::run {e}");
@@ -127,15 +148,23 @@ impl Bot for ArbitrageBot {
 
             self.answers.get_mut(answer_id).unwrap().probability = *bet_after_prob;
 
-            let tot_prob = self.find_arb();
-            if tot_prob >= 1. {
-                info!("FOUND ARB OPPORTUNITY! {tot_prob}");
-            } else {
-                info!("NOT ARB OPPORTUNITY {tot_prob}");
-            }
-
             i += 1;
         }
+    }
+
+    fn botbet_to_posty_packet(&self, bet: manifold_types::BotBet) -> market_handler::PostyPacket {
+        market_handler::PostyPacket::new(
+            self.get_id(),
+            market_handler::Method::Post,
+            "bet".to_string(),
+            vec![
+                ("amount".to_string(), bet.amount.to_string()),
+                ("contractId".to_string(), bet.contract_id),
+                ("outcome".to_string(), bet.outcome.to_string()),
+            ],
+            None,
+            None,
+        )
     }
 
     fn get_id(&self) -> String {
