@@ -12,14 +12,16 @@ fn get_env_key(key: &str) -> Result<String, String> {
     }
 }
 
-async fn get_endpoint(
+pub async fn get_endpoint(
     endpoint: String,
     query_params: &[(String, String)],
 ) -> Result<reqwest::Response, reqwest::Error> {
-    let client = reqwest::Client::new();
+    debug!(
+        "get endpoint; endpoint '{endpoint}'; query params '{:?}'",
+        query_params,
+    );
 
-    debug!("endpoint '{endpoint}'");
-    debug!("query params '{query_params:?}'");
+    let client = reqwest::Client::new();
 
     let req = client
         .get(format!("https://manifold.markets/api/v0/{endpoint}"))
@@ -35,11 +37,16 @@ async fn get_endpoint(
     }
 }
 
-async fn post_endpoint(
+pub async fn post_endpoint(
     endpoint: String,
     query_params: &[(String, String)],
     data: Option<Value>,
 ) -> Result<reqwest::Response, reqwest::Error> {
+    debug!(
+        "post endpoint; endpoint '{endpoint}'; query params '{:?}'; data '{:?}'",
+        query_params, data
+    );
+
     let client = reqwest::Client::new();
     let req = client
         .post(format!("https://manifold.markets/api/v0/{endpoint}"))
@@ -60,7 +67,7 @@ async fn post_endpoint(
     }
 }
 
-async fn response_into<T: serde::de::DeserializeOwned>(
+pub async fn response_into<T: serde::de::DeserializeOwned>(
     resp: reqwest::Response,
 ) -> Result<T, errors::ReqwestResponseParsing> {
     let body = resp.text().await?;

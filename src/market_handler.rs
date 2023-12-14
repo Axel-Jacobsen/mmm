@@ -1,25 +1,23 @@
 use std::collections::HashMap;
-use std::env;
-use std::error::Error;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
-    Arc, Mutex
+    Arc, Mutex,
 };
 
-use log::{debug, error, info, warn};
+use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::sync::{broadcast, mpsc};
 use tokio::time::{sleep, Duration};
 
-use crate::utils;
 use crate::errors;
 use crate::manifold_types;
+use crate::utils;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 enum Method {
-    GET,
-    POST,
+    Get,
+    Post,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -41,7 +39,6 @@ pub struct MarketHandler {
 
     bots_to_mh_tx: mpsc::Sender<PostyPacket>,
     // mh_to_bots_rx: mpsc::Receiver<PostyPacket>,
-
     bot_out_channel: Arc<Mutex<HashMap<String, broadcast::Sender<PostyPacket>>>>,
 
     bet_channels: HashMap<String, broadcast::Sender<manifold_types::Bet>>,
@@ -54,14 +51,14 @@ impl MarketHandler {
 
         let (bots_to_mh_tx, mut bots_to_mh_rx) = mpsc::channel::<PostyPacket>(256);
         // let bot_out_channel: HashMap<String, broadcast::Sender<PostyPacket>> = HashMap::new();
-        let bot_out_channel: Arc<Mutex<HashMap<String, broadcast::Sender<PostyPacket>>>> = Arc::new(Mutex::new(HashMap::new()));
+        let bot_out_channel: Arc<Mutex<HashMap<String, broadcast::Sender<PostyPacket>>>> =
+            Arc::new(Mutex::new(HashMap::new()));
 
         let halt_flag_clone = halt_flag.clone();
         let bot_out_channel_clone = bot_out_channel.clone();
 
         tokio::spawn(async move {
             while !halt_flag_clone.load(Ordering::SeqCst) {
-
                 // why a Option instead of a Result here?
                 let posty_packet = match bots_to_mh_rx.recv().await {
                     Some(packet) => packet,
@@ -72,8 +69,21 @@ impl MarketHandler {
                 };
 
                 let maybe_res = match posty_packet.method {
-                    Method::GET => get_endpoint(posty_packet.endpoint.clone(), &posty_packet.query_params).await,
-                    Method::POST => post_endpoint(posty_packet.endpoint.clone(), &posty_packet.query_params, posty_packet.data).await
+                    Method::Get => {
+                        utils::get_endpoint(
+                            posty_packet.endpoint.clone(),
+                            &posty_packet.query_params,
+                        )
+                        .await
+                    }
+                    Method::Post => {
+                        utils::post_endpoint(
+                            posty_packet.endpoint.clone(),
+                            &posty_packet.query_params,
+                            posty_packet.data,
+                        )
+                        .await
+                    }
                 };
 
                 let res = match maybe_res {
@@ -82,17 +92,26 @@ impl MarketHandler {
                         error!("api error {e}");
                         continue;
                     }
-                }.text().await.unwrap();
+                }
+                .text()
+                .await
+                .unwrap();
 
                 let bot_id = posty_packet.bot_id;
-                bot_out_channel_clone.lock().unwrap().get(&bot_id).unwrap().send(PostyPacket {
-                    bot_id,
-                    method: posty_packet.method,
-                    endpoint: posty_packet.endpoint,
-                    query_params: posty_packet.query_params,
-                    data: None,
-                    response: res,
-                }).expect("couldn't send posty packet");
+                bot_out_channel_clone
+                    .lock()
+                    .unwrap()
+                    .get(&bot_id)
+                    .unwrap()
+                    .send(PostyPacket {
+                        bot_id,
+                        method: posty_packet.method,
+                        endpoint: posty_packet.endpoint,
+                        query_params: posty_packet.query_params,
+                        data: None,
+                        response: res,
+                    })
+                    .expect("couldn't send posty packet");
             }
         });
 
@@ -112,13 +131,13 @@ impl MarketHandler {
     }
 
     pub async fn check_alive(&self) -> bool {
-        let resp = get_endpoint("me".to_string(), &[]).await.unwrap();
+        let resp = utils::get_endpoint("me".to_string(), &[]).await.unwrap();
 
         resp.json::<manifold_types::User>().await.is_ok()
     }
 
     pub async fn whoami(&self) -> manifold_types::User {
-        let resp = get_endpoint("me".to_string(), &[]).await.unwrap();
+        let resp = utils::get_endpoint("me".to_string(), &[]).await.unwrap();
 
         resp.json::<manifold_types::User>().await.unwrap()
     }
@@ -127,7 +146,7 @@ impl MarketHandler {
         &self,
         term: String,
     ) -> Result<manifold_types::FullMarket, errors::ReqwestResponseParsing> {
-        let resp = get_endpoint(
+        let resp = utils::get_endpoint(
             "search-markets".to_string(),
             &[
                 ("term".to_string(), term.clone()),
@@ -137,7 +156,7 @@ impl MarketHandler {
         .await
         .unwrap();
 
-        let lite_market_req = response_into::<Vec<manifold_types::LiteMarket>>(resp).await;
+        let lite_market_req = utils::response_into::<Vec<manifold_types::LiteMarket>>(resp).await;
         let lite_market = match lite_market_req {
             Ok(mut markets) => {
                 if markets.len() == 1 {
@@ -154,9 +173,10 @@ impl MarketHandler {
         }?;
 
         let full_market =
-            get_endpoint(format!("market/{}", lite_market.as_ref().unwrap().id), &[]).await?;
+            utils::get_endpoint(format!("market/{}", lite_market.as_ref().unwrap().id), &[])
+                .await?;
 
-        response_into::<manifold_types::FullMarket>(full_market).await
+        utils::response_into::<manifold_types::FullMarket>(full_market).await
     }
 
     /// Initializes a tx, rx pair for the bot. The tx channel is used by the
@@ -214,11 +234,11 @@ impl MarketHandler {
         let mut base_query = query_params.to_vec();
         base_query.push(("limit".to_string(), "1".to_string()));
 
-        let response = get_endpoint("bets".to_string(), &base_query)
+        let response = utils::get_endpoint("bets".to_string(), &base_query)
             .await
             .expect("Couldn't get most recent bet from api");
 
-        let mut most_recent_id = response_into::<Vec<manifold_types::Bet>>(response)
+        let mut most_recent_id = utils::response_into::<Vec<manifold_types::Bet>>(response)
             .await
             .expect("Couldn't convert json into Bet")
             .pop()
@@ -235,7 +255,7 @@ impl MarketHandler {
                 let mut params = query_params.clone();
                 params.push(("after".to_string(), most_recent_id.clone()));
 
-                let resp = match get_endpoint("bets".to_string(), &params).await {
+                let resp = match utils::get_endpoint("bets".to_string(), &params).await {
                     Ok(resp) => resp,
                     Err(e) => {
                         warn!("continuing... couldn't get most recent bet due to api error: {e}");
@@ -243,7 +263,7 @@ impl MarketHandler {
                     }
                 };
 
-                let bets = response_into::<Vec<manifold_types::Bet>>(resp)
+                let bets = utils::response_into::<Vec<manifold_types::Bet>>(resp)
                     .await
                     .expect("Couldn't convert json into Bet");
 

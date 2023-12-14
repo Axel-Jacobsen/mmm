@@ -68,13 +68,11 @@ impl ArbitrageBot {
         let inverse_sum: f64 = self.answers.values().map(|a| 1.0 / a.probability).sum();
 
         for answer in self.answers.values() {
-            bets.push(
-                manifold_types::BotBet {
-                    amount: 100. * (1. / answer.probability) / inverse_sum,
-                    contract_id: self.market.lite_market.id.clone(),
-                    outcome: manifold_types::MarketOutcome::Other(answer.id.clone()),
-                }
-            );
+            bets.push(manifold_types::BotBet {
+                amount: 100. * (1. / answer.probability) / inverse_sum,
+                contract_id: self.market.lite_market.id.clone(),
+                outcome: manifold_types::MarketOutcome::Other(answer.id.clone()),
+            });
         }
         info!("bets {:?}", bets);
 

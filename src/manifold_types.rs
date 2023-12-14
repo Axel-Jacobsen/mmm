@@ -112,7 +112,7 @@ pub struct User {
     last_bet_time: Option<u64>,
 
     #[serde(rename = "currentBettingStreak")]
-    current_betting_streak: Option<u64>,  // guessing here
+    current_betting_streak: Option<u64>, // guessing here
 
     #[serde(rename = "profitCached")]
     profit_cached: HashMap<TimePeriod, f64>,
