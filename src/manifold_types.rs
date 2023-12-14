@@ -2,6 +2,18 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
+enum TimePeriod {
+    #[serde(rename = "daily")]
+    Daily,
+    #[serde(rename = "weekly")]
+    Weekly,
+    #[serde(rename = "monthly")]
+    Monthly,
+    #[serde(rename = "allTime")]
+    AllTime,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub enum MarketOutcome {
     // maybe not so useful, because MarketOutcome can be YES, NO,
     // and 0..\d for some reason
@@ -49,11 +61,14 @@ pub enum MarketOutcomeType {
 pub struct User {
     /// from <https://docs.manifold.markets/api#get-v0users>
     id: String,
-    pub name: String,
-    username: String,
-    url: Option<String>,
+
     #[serde(rename = "createdTime")]
     created_time: u64,
+
+    pub name: String,
+    username: String,
+
+    url: Option<String>,
 
     #[serde(rename = "avatarUrl")]
     avatar_url: String,
@@ -62,6 +77,7 @@ pub struct User {
 
     #[serde(rename = "bannerUrl")]
     banner_url: Option<String>,
+
     website: Option<String>,
 
     #[serde(rename = "twitterHandle")]
@@ -70,13 +86,36 @@ pub struct User {
     #[serde(rename = "discordHandle")]
     discord_handle: Option<String>,
 
+    #[serde(rename = "isBot")]
+    is_bot: Option<bool>,
+
+    /// is in manifold team
+    #[serde(rename = "isAdmin")]
+    is_admin: Option<bool>,
+
+    /// is trustworthy
+    #[serde(rename = "isTrustworthy")]
+    is_trustworthy: Option<bool>,
+
+    #[serde(rename = "isBannedFromPosting")]
+    is_banned_from_posting: Option<bool>,
+
+    #[serde(rename = "userDeleted")]
+    user_deleted: Option<bool>,
+
     pub balance: f64,
 
     #[serde(rename = "totalDeposits")]
     total_deposits: f64,
 
-    #[serde(rename = "totalPnLCached")]
-    total_pnl_cached: Option<f64>,
+    #[serde(rename = "lastBetTime")]
+    last_bet_time: Option<u64>,
+
+    #[serde(rename = "currentBettingStreak")]
+    current_betting_streak: Option<u64>,  // guessing here
+
+    #[serde(rename = "profitCached")]
+    profit_cached: HashMap<TimePeriod, f64>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
