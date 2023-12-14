@@ -69,7 +69,8 @@ impl ArbitrageBot {
             bets.push(manifold_types::BotBet {
                 amount: 100. * (1. / answer.probability) / inverse_sum,
                 contract_id: self.market.lite_market.id.clone(),
-                outcome: manifold_types::MarketOutcome::Other(answer.id.clone()),
+                // outcome: manifold_types::MarketOutcome::Other(answer.id.clone()),
+                outcome: manifold_types::MarketOutcome::Yes,
             });
         }
 
@@ -157,12 +158,12 @@ impl Bot for ArbitrageBot {
             self.get_id(),
             market_handler::Method::Post,
             "bet".to_string(),
-            vec![
-                ("amount".to_string(), bet.amount.to_string()),
-                ("contractId".to_string(), bet.contract_id),
-                ("outcome".to_string(), bet.outcome.to_string()),
-            ],
-            None,
+            vec![],
+            Some(serde_json::json!({
+                "amount": bet.amount,
+                "contractId": bet.contract_id,
+                "outcome": bet.outcome
+            })),
             None,
         )
     }

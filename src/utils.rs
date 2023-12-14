@@ -29,6 +29,7 @@ pub async fn get_endpoint(
         .header("Authorization", get_env_key("MANIFOLD_KEY").unwrap());
 
     let resp = req.send().await?;
+
     if resp.status().is_success() {
         Ok(resp)
     } else {
@@ -54,7 +55,9 @@ pub async fn post_endpoint(
         .header("Authorization", get_env_key("MANIFOLD_KEY").unwrap());
 
     let resp = if let Some(data) = data {
-        req.json(&data).send().await?
+        let reqq = req.json(&data);
+        debug!("request: {:?}", reqq);
+        reqq.send().await?
     } else {
         req.send().await?
     };

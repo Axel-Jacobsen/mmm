@@ -4,7 +4,7 @@ use std::sync::{
     Arc, Mutex,
 };
 
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::sync::{broadcast, mpsc};
@@ -105,6 +105,8 @@ impl MarketHandler {
                     continue;
                 }
             };
+
+            debug!("got posty packet {:?}", posty_packet);
 
             let maybe_res = match posty_packet.method {
                 Method::Get => {
