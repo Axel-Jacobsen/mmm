@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fmt;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 enum TimePeriod {
@@ -23,6 +24,16 @@ pub enum MarketOutcome {
     No,
     #[serde(untagged)]
     Other(String),
+}
+
+impl fmt::Display for MarketOutcome {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            MarketOutcome::Yes => write!(f, "YES"),
+            MarketOutcome::No => write!(f, "NO"),
+            MarketOutcome::Other(s) => write!(f, "{}", s),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
@@ -241,7 +252,7 @@ pub struct Answer {
     #[serde(rename = "contractId")]
     contract_id: String,
 
-    text: String,
+    pub text: String,
 
     #[serde(rename = "userId")]
     user_id: String,
