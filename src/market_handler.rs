@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 use std::env;
+use std::error::Error;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
-    Arc,
+    Arc, Mutex
 };
 
 use log::{debug, error, info, warn};
@@ -11,59 +12,24 @@ use serde_json::Value;
 use tokio::sync::{broadcast, mpsc};
 use tokio::time::{sleep, Duration};
 
+use crate::utils;
 use crate::errors;
 use crate::manifold_types;
 
-fn get_env_key(key: &str) -> Result<String, String> {
-    match env::var(key) {
-        Ok(key) => Ok(format!("Key {key}")),
-        Err(e) => Err(format!("couldn't find Manifold API key: {e}")),
-    }
-}
-
-async fn get_endpoint(
-    endpoint: String,
-    query_params: &[(String, String)],
-) -> Result<reqwest::Response, reqwest::Error> {
-    let client = reqwest::Client::new();
-
-    debug!("endpoint '{endpoint}'");
-    debug!("query params '{query_params:?}'");
-
-    let req = client
-        .get(format!("https://manifold.markets/api/v0/{endpoint}"))
-        .query(&query_params)
-        .header("Authorization", get_env_key("MANIFOLD_KEY").unwrap());
-
-    let resp = req.send().await?;
-    if resp.status().is_success() {
-        Ok(resp)
-    } else {
-        error!("api error (bad status code) {resp:?}");
-        Err(resp.error_for_status().unwrap_err())
-    }
-}
-
-async fn response_into<T: serde::de::DeserializeOwned>(
-    resp: reqwest::Response,
-) -> Result<T, errors::ReqwestResponseParsing> {
-    let body = resp.text().await?;
-    let from_json = serde_json::from_str::<T>(&body);
-    match from_json {
-        Ok(t) => Ok(t),
-        Err(e) => {
-            error!("Couldn't parse response {body}");
-            Err(errors::ReqwestResponseParsing::SerdeError(e))
-        }
-    }
+#[derive(Serialize, Deserialize, Debug, Clone)]
+enum Method {
+    GET,
+    POST,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PostyPacket {
     bot_id: String,
+    method: Method,
     endpoint: String,
     query_params: Vec<(String, String)>,
-    data: Option<Value>, // json value
+    data: Option<Value>,
+    response: String,
 }
 
 #[allow(dead_code)]
@@ -74,9 +40,9 @@ pub struct MarketHandler {
     halt_flag: Arc<AtomicBool>,
 
     bots_to_mh_tx: mpsc::Sender<PostyPacket>,
-    mh_to_bots_rx: mpsc::Receiver<PostyPacket>,
+    // mh_to_bots_rx: mpsc::Receiver<PostyPacket>,
 
-    bot_out_channel: HashMap<String, broadcast::Sender<PostyPacket>>,
+    bot_out_channel: Arc<Mutex<HashMap<String, broadcast::Sender<PostyPacket>>>>,
 
     bet_channels: HashMap<String, broadcast::Sender<manifold_types::Bet>>,
 }
@@ -86,15 +52,56 @@ impl MarketHandler {
     pub fn new() -> Self {
         let halt_flag = Arc::new(AtomicBool::new(false));
 
-        let (bots_to_mh_tx, mh_to_bots_rx) = mpsc::channel::<PostyPacket>(32);
-        let bot_out_channel = HashMap::new();
+        let (bots_to_mh_tx, mut bots_to_mh_rx) = mpsc::channel::<PostyPacket>(256);
+        // let bot_out_channel: HashMap<String, broadcast::Sender<PostyPacket>> = HashMap::new();
+        let bot_out_channel: Arc<Mutex<HashMap<String, broadcast::Sender<PostyPacket>>>> = Arc::new(Mutex::new(HashMap::new()));
+
+        let halt_flag_clone = halt_flag.clone();
+        let bot_out_channel_clone = bot_out_channel.clone();
+
+        tokio::spawn(async move {
+            while !halt_flag_clone.load(Ordering::SeqCst) {
+
+                // why a Option instead of a Result here?
+                let posty_packet = match bots_to_mh_rx.recv().await {
+                    Some(packet) => packet,
+                    None => {
+                        warn!("posty packet rx is none");
+                        continue;
+                    }
+                };
+
+                let maybe_res = match posty_packet.method {
+                    Method::GET => get_endpoint(posty_packet.endpoint.clone(), &posty_packet.query_params).await,
+                    Method::POST => post_endpoint(posty_packet.endpoint.clone(), &posty_packet.query_params, posty_packet.data).await
+                };
+
+                let res = match maybe_res {
+                    Ok(res) => res,
+                    Err(e) => {
+                        error!("api error {e}");
+                        continue;
+                    }
+                }.text().await.unwrap();
+
+                let bot_id = posty_packet.bot_id;
+                bot_out_channel_clone.lock().unwrap().get(&bot_id).unwrap().send(PostyPacket {
+                    bot_id,
+                    method: posty_packet.method,
+                    endpoint: posty_packet.endpoint,
+                    query_params: posty_packet.query_params,
+                    data: None,
+                    response: res,
+                }).expect("couldn't send posty packet");
+            }
+        });
 
         Self {
             api_read_limit_per_s: 100,
             api_write_limit_per_min: 10,
             halt_flag,
             bots_to_mh_tx,
-            mh_to_bots_rx,
+            // mh_to_bots_rx,
             bot_out_channel,
             bet_channels: HashMap::new(),
         }
@@ -152,6 +159,27 @@ impl MarketHandler {
         response_into::<manifold_types::FullMarket>(full_market).await
     }
 
+    /// Initializes a tx, rx pair for the bot. The tx channel is used by the
+    /// bots send bets to the MarketHandler, and is many-to-one. The Reciever
+    /// channel is used by the MarketHandler to send the responses, and is
+    /// one-to-one. Each channel
+    pub async fn posty_init(
+        &mut self,
+        bot_id: String,
+    ) -> Result<(mpsc::Sender<PostyPacket>, broadcast::Receiver<PostyPacket>), String> {
+        // if id is in hashmap, bail
+        if self.bot_out_channel.lock().unwrap().contains_key(&bot_id) {
+            return Err(format!("Bot {bot_id} already exists"));
+        }
+
+        let bot_to_mh_tx = self.bots_to_mh_tx.clone();
+
+        let (tx_bot, rx_bot) = broadcast::channel::<PostyPacket>(4);
+        self.bot_out_channel.lock().unwrap().insert(bot_id, tx_bot);
+
+        Ok((bot_to_mh_tx, rx_bot))
+    }
+
     pub async fn get_bet_stream_for_market_id(
         &mut self,
         market_id: String,
@@ -161,27 +189,6 @@ impl MarketHandler {
             vec![("contractId".to_string(), market_id)],
         )
         .await
-    }
-
-    /// Initializes a tx, rx pair for the bot. The tx channel is used by the
-    /// bots send bets to the MarketHandler, and is many-to-one. The Reciever
-    /// channel is used by the MarketHandler to send the responses, and is
-    /// one-to-one. Each channel
-    pub async fn posty_init(
-        &mut self,
-        bot_id: String,
-    ) -> Result<(mpsc::Sender<PostyPacket>, broadcast::Receiver<PostyPacket>), String> {
-        // if id is in hashmap bail
-        if self.bot_out_channel.contains_key(&bot_id) {
-            return Err(format!("Bot {bot_id} already exists"));
-        }
-
-        let bot_to_mh_tx = self.bots_to_mh_tx.clone();
-
-        let (tx_bot, rx_bot) = broadcast::channel::<PostyPacket>(4);
-        self.bot_out_channel.insert(bot_id, tx_bot);
-
-        Ok((bot_to_mh_tx, rx_bot))
     }
 
     pub async fn get_bet_stream(
@@ -197,7 +204,7 @@ impl MarketHandler {
         let rx = if self.bet_channels.contains_key(&stream_key) {
             self.bet_channels[&stream_key].subscribe()
         } else {
-            let (tx, rx) = broadcast::channel::<manifold_types::Bet>(32);
+            let (tx, rx) = broadcast::channel::<manifold_types::Bet>(128);
             self.bet_channels
                 .entry(stream_key.to_string())
                 .or_insert(tx);

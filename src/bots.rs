@@ -63,27 +63,22 @@ impl ArbitrageBot {
         tot_prob
     }
 
-    fn bet_amount(&self) -> f64 {
-        let mut bet_map: HashMap<String, manifold_types::BotBet> = HashMap::new();
+    fn bet_amount(&self) -> Vec<manifold_types::BotBet> {
+        let mut bets: Vec<manifold_types::BotBet> = vec![];
         let inverse_sum: f64 = self.answers.values().map(|a| 1.0 / a.probability).sum();
 
         for answer in self.answers.values() {
-            let bb = manifold_types::BotBet {
-                amount: 100. * (1. / answer.probability) / inverse_sum,
-                contract_id: self.market.lite_market.id.clone(),
-                outcome: manifold_types::MarketOutcome::Other(answer.id.clone()),
-            };
-            bet_map.insert(answer.id.clone(), bb);
+            bets.push(
+                manifold_types::BotBet {
+                    amount: 100. * (1. / answer.probability) / inverse_sum,
+                    contract_id: self.market.lite_market.id.clone(),
+                    outcome: manifold_types::MarketOutcome::Other(answer.id.clone()),
+                }
+            );
         }
-        info!("BET MAP{:?}", bet_map);
+        info!("bets {:?}", bets);
 
-        assert!(
-            (bet_map.values().map(|bb| bb.amount).sum::<f64>() - 100.).abs() < 1e-5,
-            "sum of bets {} != 100",
-            bet_map.values().map(|bb| bb.amount).sum::<f64>()
-        );
-
-        0.
+        bets
     }
 }
 
@@ -140,8 +135,6 @@ impl Bot for ArbitrageBot {
             } else {
                 info!("NOT ARB OPPORTUNITY {tot_prob}");
             }
-
-            self.bet_amount();
 
             i += 1;
         }
