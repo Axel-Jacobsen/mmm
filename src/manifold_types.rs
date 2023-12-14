@@ -386,6 +386,10 @@ pub struct BotBet {
     /// (Bet on numeric markets at your own peril.)
     #[serde(flatten)]
     pub outcome: MarketOutcome,
+
+    /// Optional. The ID of the answer to bet on for free response markets.
+    #[serde(rename = "answerId", skip_serializing_if = "Option::is_none")]
+    pub answer_id: Option<String>,
 }
 
 /// Represents a bet
