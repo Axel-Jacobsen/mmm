@@ -40,7 +40,13 @@ async fn main() {
     );
 
     let (bot_to_mh_tx, rx_bot) = market_handler.posty_init("bawt".to_string()).await.unwrap();
-    let mut bot = ArbitrageBot::new("bawt".to_string(), me.clone(), arb_market.clone(), bot_to_mh_tx, rx_bot);
+    let mut bot = ArbitrageBot::new(
+        "bawt".to_string(),
+        me.clone(),
+        arb_market.clone(),
+        bot_to_mh_tx,
+        rx_bot,
+    );
 
     let rx = market_handler
         .get_bet_stream_for_market_id(arb_market.lite_market.id)

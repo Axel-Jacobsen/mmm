@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
-use log::{debug, info, warn};
+use log::{debug, error, info, warn};
 use tokio::sync::{broadcast, mpsc};
 
 use crate::manifold_types;
@@ -24,8 +24,15 @@ pub struct ArbitrageBot {
 }
 
 impl ArbitrageBot {
-    pub fn new(id: String, me: manifold_types::User, market: manifold_types::FullMarket, bot_to_mh_tx: mpsc::Sender<market_handler::PostyPacket>, mh_to_bot_rx: broadcast::Receiver<market_handler::PostyPacket>) -> Self {
+    pub fn new(
+        id: String,
+        me: manifold_types::User,
+        market: manifold_types::FullMarket,
+        bot_to_mh_tx: mpsc::Sender<market_handler::PostyPacket>,
+        mh_to_bot_rx: broadcast::Receiver<market_handler::PostyPacket>,
+    ) -> Self {
         let mut id_to_answers = HashMap::new();
+
         match &market.answers {
             Some(answers) => {
                 for answer in answers {
@@ -33,10 +40,11 @@ impl ArbitrageBot {
                 }
             }
             None => {
-                warn!("market {} has no answers", &market.lite_market.question);
+                error!("market {} has no answers", &market.lite_market.question);
                 panic!("market {} has no answers", &market.lite_market.question);
             }
         }
+
         Self {
             id,
             me,
@@ -94,47 +102,48 @@ impl Bot for ArbitrageBot {
 
         let mut i: u64 = 0;
         loop {
-            match rx.recv().await {
-                Ok(bet) => {
-                    debug!("{i} {:?}", bet);
-
-                    let answer_id = &bet.answer_id.expect("answer_id is None");
-
-                    debug!(
-                        "answer_id {answer_id} prob before {} new prob {} our previous prob{}",
-                        &bet.prob_before,
-                        &bet.prob_after,
-                        self.answers.get_mut(answer_id).unwrap().probability
-                    );
-
-                    let bet_prev_prob = &bet.prob_before;
-                    let bet_after_prob = &bet.prob_after;
-                    let our_prev_prob = &self.answers.get_mut(answer_id).unwrap().probability;
-
-                    if bet_prev_prob != our_prev_prob {
-                        warn!(
-                            "bet_prev_prob {} != our_prev_prob {}",
-                            bet_prev_prob, our_prev_prob
-                        );
-                    }
-
-                    self.answers.get_mut(answer_id).unwrap().probability = *bet_after_prob;
-
-                    let tot_prob = self.find_arb();
-                    if tot_prob >= 1. {
-                        info!("FOUND ARB OPPORTUNITY! {tot_prob}");
-                    } else {
-                        info!("NOT ARB OPPORTUNITY {tot_prob}");
-                    }
-
-                    self.bet_amount();
-
-                    i += 1;
-                }
+            let bet = match rx.recv().await {
+                Ok(bet) => bet,
                 Err(e) => {
                     warn!("in ArbitrageBot::run {e}");
+                    continue;
                 }
+            };
+
+            debug!("{i} {:?}", bet);
+
+            let answer_id = &bet.answer_id.expect("answer_id is None");
+
+            debug!(
+                "answer_id {answer_id} prob before {} new prob {} our previous prob{}",
+                &bet.prob_before,
+                &bet.prob_after,
+                self.answers.get_mut(answer_id).unwrap().probability
+            );
+
+            let bet_prev_prob = &bet.prob_before;
+            let bet_after_prob = &bet.prob_after;
+            let our_prev_prob = &self.answers.get_mut(answer_id).unwrap().probability;
+
+            if bet_prev_prob != our_prev_prob {
+                warn!(
+                    "bet_prev_prob {} != our_prev_prob {}",
+                    bet_prev_prob, our_prev_prob
+                );
             }
+
+            self.answers.get_mut(answer_id).unwrap().probability = *bet_after_prob;
+
+            let tot_prob = self.find_arb();
+            if tot_prob >= 1. {
+                info!("FOUND ARB OPPORTUNITY! {tot_prob}");
+            } else {
+                info!("NOT ARB OPPORTUNITY {tot_prob}");
+            }
+
+            self.bet_amount();
+
+            i += 1;
         }
     }
 
