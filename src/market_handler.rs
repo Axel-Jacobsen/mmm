@@ -38,7 +38,6 @@ pub struct MarketHandler {
     halt_flag: Arc<AtomicBool>,
 
     bots_to_mh_tx: mpsc::Sender<PostyPacket>,
-    // mh_to_bots_rx: mpsc::Receiver<PostyPacket>,
     bot_out_channel: Arc<Mutex<HashMap<String, broadcast::Sender<PostyPacket>>>>,
 
     bet_channels: HashMap<String, broadcast::Sender<manifold_types::Bet>>,
@@ -49,80 +48,85 @@ impl MarketHandler {
     pub fn new() -> Self {
         let halt_flag = Arc::new(AtomicBool::new(false));
 
-        let (bots_to_mh_tx, mut bots_to_mh_rx) = mpsc::channel::<PostyPacket>(256);
-        // let bot_out_channel: HashMap<String, broadcast::Sender<PostyPacket>> = HashMap::new();
+        let (bots_to_mh_tx, bots_to_mh_rx) = mpsc::channel::<PostyPacket>(256);
         let bot_out_channel: Arc<Mutex<HashMap<String, broadcast::Sender<PostyPacket>>>> =
             Arc::new(Mutex::new(HashMap::new()));
 
         let halt_flag_clone = halt_flag.clone();
         let bot_out_channel_clone = bot_out_channel.clone();
 
-        tokio::spawn(async move {
-            while !halt_flag_clone.load(Ordering::SeqCst) {
-                // why a Option instead of a Result here?
-                let posty_packet = match bots_to_mh_rx.recv().await {
-                    Some(packet) => packet,
-                    None => {
-                        warn!("posty packet rx is none");
-                        continue;
-                    }
-                };
-
-                let maybe_res = match posty_packet.method {
-                    Method::Get => {
-                        utils::get_endpoint(
-                            posty_packet.endpoint.clone(),
-                            &posty_packet.query_params,
-                        )
-                        .await
-                    }
-                    Method::Post => {
-                        utils::post_endpoint(
-                            posty_packet.endpoint.clone(),
-                            &posty_packet.query_params,
-                            posty_packet.data,
-                        )
-                        .await
-                    }
-                };
-
-                let res = match maybe_res {
-                    Ok(res) => res,
-                    Err(e) => {
-                        error!("api error {e}");
-                        continue;
-                    }
-                }
-                .text()
-                .await
-                .unwrap();
-
-                let bot_id = posty_packet.bot_id;
-                bot_out_channel_clone
-                    .lock()
-                    .unwrap()
-                    .get(&bot_id)
-                    .unwrap()
-                    .send(PostyPacket {
-                        bot_id,
-                        method: posty_packet.method,
-                        endpoint: posty_packet.endpoint,
-                        query_params: posty_packet.query_params,
-                        data: None,
-                        response: res,
-                    })
-                    .expect("couldn't send posty packet");
-            }
-        });
+        tokio::spawn(Self::handle_bot_messages(
+            halt_flag_clone,
+            bots_to_mh_rx,
+            bot_out_channel_clone,
+        ));
 
         Self {
             api_read_limit_per_s: 100,
             api_write_limit_per_min: 10,
             halt_flag,
             bots_to_mh_tx,
-            // mh_to_bots_rx,
             bot_out_channel,
             bet_channels: HashMap::new(),
+        }
+    }
+
+    async fn handle_bot_messages(
+        halt_flag: Arc<AtomicBool>,
+        mut bots_to_mh_rx: mpsc::Receiver<PostyPacket>,
+        bot_out_channel: Arc<Mutex<HashMap<String, broadcast::Sender<PostyPacket>>>>,
+    ) {
+        while !halt_flag.load(Ordering::SeqCst) {
+            // why a Option instead of a Result here?
+            let posty_packet = match bots_to_mh_rx.recv().await {
+                Some(packet) => packet,
+                None => {
+                    warn!("posty packet rx is none");
+                    continue;
+                }
+            };
+
+            let maybe_res = match posty_packet.method {
+                Method::Get => {
+                    utils::get_endpoint(posty_packet.endpoint.clone(), &posty_packet.query_params)
+                        .await
+                }
+                Method::Post => {
+                    utils::post_endpoint(
+                        posty_packet.endpoint.clone(),
+                        &posty_packet.query_params,
+                        posty_packet.data,
+                    )
+                    .await
+                }
+            };
+
+            let res = match maybe_res {
+                Ok(res) => res,
+                Err(e) => {
+                    error!("api error {e}");
+                    continue;
+                }
+            }
+            .text()
+            .await
+            .unwrap();
+
+            let bot_id = posty_packet.bot_id;
+            bot_out_channel
+                .lock()
+                .unwrap()
+                .get(&bot_id)
+                .unwrap()
+                .send(PostyPacket {
+                    bot_id,
+                    method: posty_packet.method,
+                    endpoint: posty_packet.endpoint,
+                    query_params: posty_packet.query_params,
+                    data: None,
+                    response: res,
+                })
+                .expect("couldn't send posty packet");
         }
     }
 
