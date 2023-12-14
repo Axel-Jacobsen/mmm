@@ -1,19 +1,9 @@
-use std::collections::HashMap;
 use std::env;
-use std::error::Error;
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc, Mutex
-};
 
-use log::{debug, error, info, warn};
-use serde::{Deserialize, Serialize};
+use log::{debug, error};
 use serde_json::Value;
-use tokio::sync::{broadcast, mpsc};
-use tokio::time::{sleep, Duration};
 
 use crate::errors;
-use crate::manifold_types;
 
 fn get_env_key(key: &str) -> Result<String, String> {
     match env::var(key) {
@@ -21,7 +11,6 @@ fn get_env_key(key: &str) -> Result<String, String> {
         Err(e) => Err(format!("couldn't find Manifold API key: {e}")),
     }
 }
-
 
 async fn get_endpoint(
     endpoint: String,
