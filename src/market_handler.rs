@@ -15,7 +15,7 @@ use crate::manifold_types;
 use crate::utils;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-enum Method {
+pub enum Method {
     Get,
     Post,
 }
@@ -27,7 +27,27 @@ pub struct PostyPacket {
     endpoint: String,
     query_params: Vec<(String, String)>,
     data: Option<Value>,
-    response: String,
+    response: Option<String>,
+}
+
+impl PostyPacket {
+    pub fn new(
+        bot_id: String,
+        method: Method,
+        endpoint: String,
+        query_params: Vec<(String, String)>,
+        data: Option<Value>,
+        response: Option<String>,
+    ) -> Self {
+        Self {
+            bot_id,
+            method,
+            endpoint,
+            query_params,
+            data,
+            response,
+        }
+    }
 }
 
 #[allow(dead_code)]
@@ -113,19 +133,21 @@ impl MarketHandler {
             .unwrap();
 
             let bot_id = posty_packet.bot_id;
+            let packet = PostyPacket {
+                bot_id: bot_id.clone(),
+                method: posty_packet.method,
+                endpoint: posty_packet.endpoint,
+                query_params: posty_packet.query_params,
+                data: None,
+                response: Some(res),
+            };
+
             bot_out_channel
                 .lock()
                 .unwrap()
                 .get(&bot_id)
                 .unwrap()
-                .send(PostyPacket {
-                    bot_id,
-                    method: posty_packet.method,
-                    endpoint: posty_packet.endpoint,
-                    query_params: posty_packet.query_params,
-                    data: None,
-                    response: res,
-                })
+                .send(packet)
                 .expect("couldn't send posty packet");
         }
     }
