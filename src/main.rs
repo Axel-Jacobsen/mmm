@@ -3,11 +3,11 @@ use log::{error, info};
 use crate::bots::{ArbitrageBot, Bot};
 
 mod bots;
-mod utils;
 mod errors;
-mod rate_limiter;
 mod manifold_types;
 mod market_handler;
+mod rate_limiter;
+mod utils;
 
 #[tokio::main]
 async fn main() {

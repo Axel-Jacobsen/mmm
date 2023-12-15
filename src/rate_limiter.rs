@@ -2,15 +2,14 @@
 /// We want to be able to
 ///     - immediately allow requests if they will not violate the rate limit
 ///     - block until we can make another request
-
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
-use queues::{IsQueue,CircularBuffer};
+use queues::{CircularBuffer, IsQueue};
 
 pub struct RateLimiter {
     duration: Duration,
-    prev_requests: CircularBuffer::<Instant>,
+    prev_requests: CircularBuffer<Instant>,
 }
 
 /// Reaaaaly basic rate limiter
@@ -33,10 +32,10 @@ impl RateLimiter {
             return true;
         }
 
-        let next_el_for_removal =
-            self.prev_requests
-                .peek()
-                .expect("queue was empty, should be impossible!");
+        let next_el_for_removal = self
+            .prev_requests
+            .peek()
+            .expect("queue was empty, should be impossible!");
 
         let dt = Instant::now()
             .checked_duration_since(next_el_for_removal)
@@ -70,7 +69,8 @@ impl RateLimiter {
             return true;
         }
 
-        let next_el_for_removal = self.prev_requests
+        let next_el_for_removal = self
+            .prev_requests
             .peek()
             .expect("queue was empty, should be impossible!");
 
@@ -92,7 +92,6 @@ impl RateLimiter {
         true
     }
 }
-
 
 #[cfg(test)]
 mod tests {
