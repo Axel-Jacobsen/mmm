@@ -41,11 +41,7 @@ impl RateLimiter {
             .checked_duration_since(next_el_for_removal)
             .unwrap();
 
-        if dt >= self.duration {
-            true
-        } else {
-            false
-        }
+        dt >= self.duration
     }
 
     /// Returns true if we can make a request,
@@ -105,17 +101,17 @@ mod tests {
         // and false when it can't
         let mut rl = RateLimiter::new(3, Duration::from_millis(100));
 
-        assert_eq!(rl.attempt_commit(), true);
-        assert_eq!(rl.attempt_commit(), true);
-        assert_eq!(rl.attempt_commit(), true);
-        assert_eq!(rl.attempt_commit(), false);
+        assert!(rl.attempt_commit());
+        assert!(rl.attempt_commit());
+        assert!(rl.attempt_commit());
+        assert!(!rl.attempt_commit());
 
         sleep(Duration::from_millis(110));
 
-        assert_eq!(rl.attempt_commit(), true);
-        assert_eq!(rl.attempt_commit(), true);
-        assert_eq!(rl.attempt_commit(), true);
-        assert_eq!(rl.attempt_commit(), false);
+        assert!(rl.attempt_commit());
+        assert!(rl.attempt_commit());
+        assert!(rl.attempt_commit());
+        assert!(!rl.attempt_commit());
     }
 
     #[test]
@@ -123,10 +119,10 @@ mod tests {
         // attempt doesn't change the state
         let rl = RateLimiter::new(1, Duration::from_millis(100));
 
-        assert_eq!(rl.attempt(), true);
-        assert_eq!(rl.attempt(), true);
-        assert_eq!(rl.attempt(), true);
-        assert_eq!(rl.attempt(), true);
+        assert!(rl.attempt());
+        assert!(rl.attempt());
+        assert!(rl.attempt());
+        assert!(rl.attempt());
     }
 
     #[test]
@@ -134,14 +130,14 @@ mod tests {
         let mut rl = RateLimiter::new(1, Duration::from_millis(100));
 
         // should successfully commit
-        assert_eq!(rl.attempt_commit(), true);
+        assert!(rl.attempt_commit());
 
         // should fail to commit since we *just* added it
-        assert_eq!(rl.attempt(), false);
+        assert!(!rl.attempt());
 
         // should succeed since we have to block for less time than the timeout
         // (therefore we don't timeout, therefore it's true)
-        assert_eq!(rl.block_then_commit(Duration::from_millis(110)), true);
+        assert!(rl.block_then_commit(Duration::from_millis(110)));
     }
 
     #[test]
@@ -149,8 +145,8 @@ mod tests {
         // attempt doesn't change the state
         let mut rl = RateLimiter::new(1, Duration::from_millis(100));
 
-        assert_eq!(rl.attempt_commit(), true);
-        assert_eq!(rl.attempt(), false);
-        assert_eq!(rl.block_then_commit(Duration::from_millis(1)), false);
+        assert!(rl.attempt_commit());
+        assert!(!rl.attempt());
+        assert!(!rl.block_then_commit(Duration::from_millis(1)));
     }
 }
