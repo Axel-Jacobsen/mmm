@@ -13,7 +13,7 @@ pub struct RateLimiter {
 }
 
 /// Reaaaaly basic rate limiter
-/// Constant time peak, push
+/// Constant time peek, push
 #[allow(dead_code)]
 impl RateLimiter {
     // TODO want to add a "burst capacity" option, which returns the
@@ -26,22 +26,30 @@ impl RateLimiter {
         }
     }
 
-    /// Returns true if we can make a request, otherwise, false
-    pub fn attempt(&self) -> bool {
+    /// Returns the duration until we can make a request
+    fn time_until_available(&self) -> Duration {
         if self.prev_requests.size() < self.prev_requests.capacity() {
-            return true;
+            return Duration::new(0, 0);
         }
 
-        let next_el_for_removal = self
-            .prev_requests
-            .peek()
-            .expect("queue was empty, should be impossible!");
-
         let dt = Instant::now()
-            .checked_duration_since(next_el_for_removal)
+            .checked_duration_since(
+                self.prev_requests
+                    .peek()
+                    .expect("guaranteed to not be empty"),
+            )
             .unwrap();
 
-        dt >= self.duration
+        if dt < self.duration {
+            self.duration - dt
+        } else {
+            Duration::new(0, 0)
+        }
+    }
+
+    /// Returns true if we can make a request, otherwise, false
+    pub fn attempt(&self) -> bool {
+        self.time_until_available() == Duration::new(0, 0)
     }
 
     /// Returns true if we can make a request,
@@ -65,20 +73,13 @@ impl RateLimiter {
             return true;
         }
 
-        let next_el_for_removal = self
-            .prev_requests
-            .peek()
-            .expect("queue was empty, should be impossible!");
+        let time_until_available = self.time_until_available();
 
-        let dt = Instant::now()
-            .checked_duration_since(next_el_for_removal)
-            .unwrap();
-
-        if self.duration - dt > timeout {
+        if time_until_available > timeout {
             return false;
         }
 
-        sleep(self.duration - dt);
+        sleep(time_until_available);
 
         // Now we should be able to make a request. If we *cant*
         // make the request, something has gone terribly wrong and
@@ -86,6 +87,27 @@ impl RateLimiter {
         assert!(self.attempt_commit(), "should have succeeded");
 
         true
+    }
+
+    /// Will attempt to block for the "average pace" (duration / num reqs).
+    /// If we have to wait for longer than the average pace, we block then
+    /// commit with the timeout.
+    pub fn block_for_average_pace_then_commit(&mut self, timeout: Duration) -> bool {
+        let avg_pace = self.duration / self.prev_requests.size() as u32;
+        if self.attempt() {
+            // since we can make an attempt, sleep for avg pace and then commit
+            sleep(avg_pace);
+            self.attempt_commit()
+        } else {
+            // if we can't make an attempt, we need to block until
+            let time_until_free = self.time_until_available();
+            if time_until_free < avg_pace {
+                sleep(avg_pace);
+                self.attempt_commit()
+            } else {
+                self.block_then_commit(timeout)
+            }
+        }
     }
 }
 
@@ -148,5 +170,41 @@ mod tests {
         assert!(rl.attempt_commit());
         assert!(!rl.attempt());
         assert!(!rl.block_then_commit(Duration::from_millis(1)));
+    }
+
+    #[test]
+    fn test_rate_limiter_5() {
+        // attempt doesn't change the state
+        let mut rl = RateLimiter::new(1, Duration::from_millis(100));
+
+        assert!(rl.time_until_available() == Duration::new(0, 0));
+
+        rl.attempt_commit();
+
+        assert!(rl.time_until_available() > Duration::new(0, 0));
+    }
+
+    #[test]
+    fn test_rate_limiter_6() {
+        let mut rl = RateLimiter::new(10, Duration::from_millis(100));
+
+        // fill up the rl real quick
+        for _ in 0..10 {
+            assert!(rl.attempt_commit());
+        }
+
+        // If the timeout is less than the average pace, we should timeout
+        assert!(rl.block_for_average_pace_then_commit(Duration::from_millis(1)) == false);
+
+        // But if the timeout is greater than the average pace, we should wait for the avg pace.
+        // So first, put a fresh request in
+        rl.block_then_commit(Duration::from_millis(110));
+        // and now we should wait at *least* 10 ms
+        let start = Instant::now();
+        assert!(rl.block_for_average_pace_then_commit(Duration::from_millis(1000)) == true);
+        let elapsed = start.elapsed();
+        // TODO this will be sensitive to the speed of the machine, but I think a ms is really long
+        assert!(elapsed > Duration::from_millis(10), "elapsed: {:?}", elapsed);
+        assert!(elapsed < Duration::from_millis(15), "elapsed: {:?}", elapsed);
     }
 }
