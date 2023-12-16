@@ -50,10 +50,7 @@ impl PostyPacket {
         }
     }
 
-    pub fn response_from_existing(
-        packet: &PostyPacket,
-        response: String,
-    ) -> Self {
+    pub fn response_from_existing(packet: &PostyPacket, response: String) -> Self {
         Self {
             bot_id: packet.bot_id.clone(),
             method: packet.method.clone(),
@@ -63,7 +60,6 @@ impl PostyPacket {
             response: Some(response),
         }
     }
-
 }
 
 #[allow(dead_code)]
