@@ -49,6 +49,21 @@ impl PostyPacket {
             response,
         }
     }
+
+    pub fn response_from_existing(
+        packet: &PostyPacket,
+        response: String,
+    ) -> Self {
+        Self {
+            bot_id: packet.bot_id.clone(),
+            method: packet.method.clone(),
+            endpoint: packet.endpoint.clone(),
+            query_params: packet.query_params.clone(),
+            data: packet.data.clone(),
+            response: Some(response),
+        }
+    }
+
 }
 
 #[allow(dead_code)]
@@ -75,8 +90,9 @@ impl MarketHandler {
         let halt_flag_clone = halt_flag.clone();
         let bot_out_channel_clone = bot_out_channel.clone();
 
-        let read_rate_limiter = rate_limiter::RateLimiter::new(100, Duration::from_secs(1));
-        let write_rate_limiter = rate_limiter::RateLimiter::new(10, Duration::from_secs(60));
+        // set the rate limits slightly lower than the true value
+        let read_rate_limiter = rate_limiter::RateLimiter::new(90, Duration::from_secs(1));
+        let write_rate_limiter = rate_limiter::RateLimiter::new(9, Duration::from_secs(60));
 
         tokio::spawn(Self::handle_bot_messages(
             halt_flag_clone,
@@ -134,7 +150,7 @@ impl MarketHandler {
                         utils::post_endpoint(
                             posty_packet.endpoint.clone(),
                             &posty_packet.query_params,
-                            posty_packet.data,
+                            posty_packet.data.clone(),
                         )
                         .await
                     } else {
@@ -147,6 +163,19 @@ impl MarketHandler {
                 Ok(res) => res,
                 Err(e) => {
                     error!("api error {e}");
+                    let packet = PostyPacket::response_from_existing(
+                        &posty_packet,
+                        format!("api error {e}"),
+                    );
+
+                    bot_out_channel
+                        .lock()
+                        .unwrap()
+                        .get(&posty_packet.bot_id)
+                        .unwrap()
+                        .send(packet)
+                        .expect("couldn't send posty packet");
+
                     continue;
                 }
             }
