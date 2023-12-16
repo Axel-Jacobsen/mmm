@@ -6,6 +6,8 @@ mod bots;
 mod errors;
 mod manifold_types;
 mod market_handler;
+mod rate_limiter;
+mod utils;
 
 #[tokio::main]
 async fn main() {
@@ -39,7 +41,8 @@ async fn main() {
         serde_json::to_string_pretty(&arb_market).unwrap()
     );
 
-    let mut bot = ArbitrageBot::new(me.clone(), arb_market.clone());
+    let (bot_to_mh_tx, rx_bot) = market_handler.posty_init("bawt".to_string()).await.unwrap();
+    let mut bot = ArbitrageBot::new("bawt".to_string(), arb_market.clone(), bot_to_mh_tx, rx_bot);
 
     let rx = market_handler
         .get_bet_stream_for_market_id(arb_market.lite_market.id)

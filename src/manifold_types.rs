@@ -1,7 +1,20 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fmt;
 
-#[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
+enum TimePeriod {
+    #[serde(rename = "daily")]
+    Daily,
+    #[serde(rename = "weekly")]
+    Weekly,
+    #[serde(rename = "monthly")]
+    Monthly,
+    #[serde(rename = "allTime")]
+    AllTime,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub enum MarketOutcome {
     // maybe not so useful, because MarketOutcome can be YES, NO,
     // and 0..\d for some reason
@@ -9,6 +22,18 @@ pub enum MarketOutcome {
     Yes,
     #[serde(rename = "NO")]
     No,
+    #[serde(untagged)]
+    Other(String),
+}
+
+impl fmt::Display for MarketOutcome {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            MarketOutcome::Yes => write!(f, "YES"),
+            MarketOutcome::No => write!(f, "NO"),
+            MarketOutcome::Other(s) => write!(f, "{}", s),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
@@ -43,16 +68,18 @@ pub enum MarketOutcomeType {
     BountiedQuestion,
 }
 
-#[allow(dead_code)]
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct User {
     /// from <https://docs.manifold.markets/api#get-v0users>
     id: String,
-    pub name: String,
-    username: String,
-    url: Option<String>,
+
     #[serde(rename = "createdTime")]
     created_time: u64,
+
+    pub name: String,
+    username: String,
+
+    url: Option<String>,
 
     #[serde(rename = "avatarUrl")]
     avatar_url: String,
@@ -61,6 +88,7 @@ pub struct User {
 
     #[serde(rename = "bannerUrl")]
     banner_url: Option<String>,
+
     website: Option<String>,
 
     #[serde(rename = "twitterHandle")]
@@ -69,13 +97,36 @@ pub struct User {
     #[serde(rename = "discordHandle")]
     discord_handle: Option<String>,
 
+    #[serde(rename = "isBot")]
+    is_bot: Option<bool>,
+
+    /// is in manifold team
+    #[serde(rename = "isAdmin")]
+    is_admin: Option<bool>,
+
+    /// is trustworthy
+    #[serde(rename = "isTrustworthy")]
+    is_trustworthy: Option<bool>,
+
+    #[serde(rename = "isBannedFromPosting")]
+    is_banned_from_posting: Option<bool>,
+
+    #[serde(rename = "userDeleted")]
+    user_deleted: Option<bool>,
+
     pub balance: f64,
 
     #[serde(rename = "totalDeposits")]
     total_deposits: f64,
 
-    #[serde(rename = "totalPnLCached")]
-    total_pnl_cached: Option<f64>,
+    #[serde(rename = "lastBetTime")]
+    last_bet_time: Option<u64>,
+
+    #[serde(rename = "currentBettingStreak")]
+    current_betting_streak: Option<u64>, // guessing here
+
+    #[serde(rename = "profitCached")]
+    profit_cached: HashMap<TimePeriod, f64>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -201,7 +252,7 @@ pub struct Answer {
     #[serde(rename = "contractId")]
     contract_id: String,
 
-    text: String,
+    pub text: String,
 
     #[serde(rename = "userId")]
     user_id: String,
@@ -315,6 +366,30 @@ pub struct PeriodMetric {
     prev_value: f64,
     /// Current value
     value: f64,
+}
+
+/// https://docs.manifold.markets/api#post-v0bet
+///
+#[derive(Serialize, Debug, Clone)]
+pub struct BotBet {
+    /// amount: Required. The amount to bet, in mana, before fees.
+    pub amount: f64,
+
+    /// contractId: Required. The ID of the contract (market) to bet on.
+    #[serde(rename = "contractId")]
+    pub contract_id: String,
+
+    /// outcome: Required. The outcome to bet on. For binary markets, this is YES or NO.
+    /// For free response markets, this is the ID of the free response answer.
+    /// For numeric markets, this is a string representing the target bucket,
+    /// and an additional value parameter is required which is a number representing the target value.
+    /// (Bet on numeric markets at your own peril.)
+    #[serde(flatten)]
+    pub outcome: MarketOutcome,
+
+    /// Optional. The ID of the answer to bet on for free response markets.
+    #[serde(rename = "answerId", skip_serializing_if = "Option::is_none")]
+    pub answer_id: Option<String>,
 }
 
 /// Represents a bet
