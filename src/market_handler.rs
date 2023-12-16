@@ -12,6 +12,7 @@ use tokio::time::{sleep, Duration};
 
 use crate::errors;
 use crate::manifold_types;
+use crate::rate_limiter;
 use crate::utils;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -53,9 +54,8 @@ impl PostyPacket {
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct MarketHandler {
-    api_read_limit_per_s: u32,
-    api_write_limit_per_min: u32,
     halt_flag: Arc<AtomicBool>,
+    read_rate_limiter: rate_limiter::RateLimiter,
 
     bots_to_mh_tx: mpsc::Sender<PostyPacket>,
     bot_out_channel: Arc<Mutex<HashMap<String, broadcast::Sender<PostyPacket>>>>,
@@ -75,16 +75,20 @@ impl MarketHandler {
         let halt_flag_clone = halt_flag.clone();
         let bot_out_channel_clone = bot_out_channel.clone();
 
+        let read_rate_limiter = rate_limiter::RateLimiter::new(100, Duration::from_secs(1));
+        let write_rate_limiter = rate_limiter::RateLimiter::new(10, Duration::from_secs(60));
+
         tokio::spawn(Self::handle_bot_messages(
             halt_flag_clone,
             bots_to_mh_rx,
             bot_out_channel_clone,
+            read_rate_limiter.clone(),
+            write_rate_limiter,
         ));
 
         Self {
-            api_read_limit_per_s: 100,
-            api_write_limit_per_min: 10,
             halt_flag,
+            read_rate_limiter,
             bots_to_mh_tx,
             bot_out_channel,
             bet_channels: HashMap::new(),
@@ -95,6 +99,8 @@ impl MarketHandler {
         halt_flag: Arc<AtomicBool>,
         mut bots_to_mh_rx: mpsc::Receiver<PostyPacket>,
         bot_out_channel: Arc<Mutex<HashMap<String, broadcast::Sender<PostyPacket>>>>,
+        mut read_rate_limiter: rate_limiter::RateLimiter,
+        mut write_rate_limiter: rate_limiter::RateLimiter,
     ) {
         while !halt_flag.load(Ordering::SeqCst) {
             // why a Option instead of a Result here?
@@ -110,16 +116,30 @@ impl MarketHandler {
 
             let maybe_res = match posty_packet.method {
                 Method::Get => {
-                    utils::get_endpoint(posty_packet.endpoint.clone(), &posty_packet.query_params)
+                    if read_rate_limiter.block_for_average_pace_then_commit(Duration::from_secs(1))
+                    {
+                        utils::get_endpoint(
+                            posty_packet.endpoint.clone(),
+                            &posty_packet.query_params,
+                        )
                         .await
+                    } else {
+                        panic!("rate limiter timed out; this shouldn't be possible, most likely rate limit is set wrong");
+                    }
                 }
                 Method::Post => {
-                    utils::post_endpoint(
-                        posty_packet.endpoint.clone(),
-                        &posty_packet.query_params,
-                        posty_packet.data,
-                    )
-                    .await
+                    if write_rate_limiter
+                        .block_for_average_pace_then_commit(Duration::from_secs(60))
+                    {
+                        utils::post_endpoint(
+                            posty_packet.endpoint.clone(),
+                            &posty_packet.query_params,
+                            posty_packet.data,
+                        )
+                        .await
+                    } else {
+                        panic!("rate limiter timed out; this shouldn't be possible, most likely rate limit is set wrong");
+                    }
                 }
             };
 
@@ -277,11 +297,20 @@ impl MarketHandler {
         // sends them to the channel
         let tx_clone = self.bet_channels[&stream_key].clone();
         let halt_flag_clone = self.halt_flag.clone();
+        let mut read_rate_limiter_clone = self.read_rate_limiter.clone();
 
         tokio::spawn(async move {
             while !halt_flag_clone.load(Ordering::SeqCst) {
                 let mut params = query_params.clone();
                 params.push(("after".to_string(), most_recent_id.clone()));
+
+                let committed = read_rate_limiter_clone
+                    .block_for_average_pace_then_commit(Duration::from_millis(500));
+
+                if !committed {
+                    warn!("continuing... couldn't get most recent bet due to rate limit - we timed out");
+                    continue;
+                }
 
                 let resp = match utils::get_endpoint("bets".to_string(), &params).await {
                     Ok(resp) => resp,

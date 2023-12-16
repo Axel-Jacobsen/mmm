@@ -1,3 +1,4 @@
+use std::sync::{Arc, Mutex};
 /// The goal here is to allow us to rate limit ourselves nicely.
 /// We want to be able to
 ///     - immediately allow requests if they will not violate the rate limit
@@ -7,37 +8,33 @@ use std::time::{Duration, Instant};
 
 use queues::{CircularBuffer, IsQueue};
 
+#[derive(Clone, Debug)]
 pub struct RateLimiter {
     duration: Duration,
-    prev_requests: CircularBuffer<Instant>,
+    prev_requests: Arc<Mutex<CircularBuffer<Instant>>>,
 }
 
-/// Reaaaaly basic rate limiter
-/// Constant time peek, push
-#[allow(dead_code)]
 impl RateLimiter {
-    // TODO want to add a "burst capacity" option, which returns the
+    // TODO want to add a "get burst capacity" option, which returns the
     // number of requests that are likely to succeed immediately
 
     pub fn new(num_requests: usize, over_duration: Duration) -> Self {
         Self {
             duration: over_duration,
-            prev_requests: CircularBuffer::<Instant>::new(num_requests),
+            prev_requests: Arc::new(Mutex::new(CircularBuffer::<Instant>::new(num_requests))),
         }
     }
 
     /// Returns the duration until we can make a request
     fn time_until_available(&self) -> Duration {
-        if self.prev_requests.size() < self.prev_requests.capacity() {
+        let prev_reqs = self.prev_requests.lock().expect("attempting lock");
+
+        if prev_reqs.size() < prev_reqs.capacity() {
             return Duration::new(0, 0);
         }
 
         let dt = Instant::now()
-            .checked_duration_since(
-                self.prev_requests
-                    .peek()
-                    .expect("guaranteed to not be empty"),
-            )
+            .checked_duration_since(prev_reqs.peek().expect("guaranteed to not be empty"))
             .unwrap();
 
         if dt < self.duration {
@@ -45,6 +42,15 @@ impl RateLimiter {
         } else {
             Duration::new(0, 0)
         }
+    }
+
+    /// Get the "average pace" for the rate limit - that is, we should be able to
+    /// make one request each "average pace" duration indefinitely without violating
+    /// the rate limit
+    fn get_average_pace(&self) -> Duration {
+        let prev_reqs = self.prev_requests.lock().expect("attempting lock");
+
+        self.duration / prev_reqs.capacity() as u32
     }
 
     /// Returns true if we can make a request, otherwise, false
@@ -59,7 +65,11 @@ impl RateLimiter {
 
         if is_ok {
             let now = Instant::now();
-            self.prev_requests.add(now).unwrap();
+            self.prev_requests
+                .lock()
+                .expect("attempting lock")
+                .add(now)
+                .unwrap();
         }
 
         is_ok
@@ -93,17 +103,20 @@ impl RateLimiter {
     /// If we have to wait for longer than the average pace, we block then
     /// commit with the timeout.
     pub fn block_for_average_pace_then_commit(&mut self, timeout: Duration) -> bool {
-        let avg_pace = self.duration / self.prev_requests.size() as u32;
+        let avg_pace = self.get_average_pace();
+
         if self.attempt() {
             // since we can make an attempt, sleep for avg pace and then commit
             sleep(avg_pace);
-            self.attempt_commit()
+            assert!(self.attempt_commit(), "should have succeeded");
+            true
         } else {
             // if we can't make an attempt, we need to block until
             let time_until_free = self.time_until_available();
             if time_until_free < avg_pace {
                 sleep(avg_pace);
-                self.attempt_commit()
+                assert!(self.attempt_commit(), "should have succeeded");
+                true
             } else {
                 self.block_then_commit(timeout)
             }
@@ -204,7 +217,15 @@ mod tests {
         assert!(rl.block_for_average_pace_then_commit(Duration::from_millis(1000)) == true);
         let elapsed = start.elapsed();
         // TODO this will be sensitive to the speed of the machine, but I think a ms is really long
-        assert!(elapsed > Duration::from_millis(10), "elapsed: {:?}", elapsed);
-        assert!(elapsed < Duration::from_millis(15), "elapsed: {:?}", elapsed);
+        assert!(
+            elapsed > Duration::from_millis(10),
+            "elapsed: {:?}",
+            elapsed
+        );
+        assert!(
+            elapsed < Duration::from_millis(15),
+            "elapsed: {:?}",
+            elapsed
+        );
     }
 }
