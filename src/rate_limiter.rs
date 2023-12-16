@@ -207,14 +207,14 @@ mod tests {
         }
 
         // If the timeout is less than the average pace, we should timeout
-        assert!(rl.block_for_average_pace_then_commit(Duration::from_millis(1)) == false);
+        assert!(!rl.block_for_average_pace_then_commit(Duration::from_millis(1)));
 
         // But if the timeout is greater than the average pace, we should wait for the avg pace.
         // So first, put a fresh request in
         rl.block_then_commit(Duration::from_millis(110));
         // and now we should wait at *least* 10 ms
         let start = Instant::now();
-        assert!(rl.block_for_average_pace_then_commit(Duration::from_millis(1000)) == true);
+        assert!(rl.block_for_average_pace_then_commit(Duration::from_millis(1000)));
         let elapsed = start.elapsed();
         // TODO this will be sensitive to the speed of the machine, but I think a ms is really long
         assert!(
