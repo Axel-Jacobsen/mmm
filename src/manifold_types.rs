@@ -71,7 +71,7 @@ pub enum MarketOutcomeType {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct User {
     /// from <https://docs.manifold.markets/api#get-v0users>
-    id: String,
+    pub id: String,
 
     #[serde(rename = "createdTime")]
     created_time: u64,

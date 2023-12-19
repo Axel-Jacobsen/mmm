@@ -215,6 +215,46 @@ impl MarketHandler {
         resp.json::<manifold_types::User>().await.unwrap()
     }
 
+    pub async fn liquidate_all_positions(&self) -> Result<(), String> {
+        let me = self.whoami().await;
+        let params = [("userId".to_string(), me.id.clone())];
+
+        let bets_response = utils::get_endpoint("bets".to_string(), &params).await;
+
+        let bets = match bets_response {
+            Ok(bets_response) => bets_response
+                .json::<Vec<manifold_types::Bet>>()
+                .await
+                .unwrap(),
+            Err(e) => {
+                error!("couldn't get bets: {e}");
+                return Err(format!("couldn't get bets: {e}"));
+            }
+        };
+
+        for bet in bets {
+            let data = Some(serde_json::json!({
+                "contractId": bet.contract_id,
+                "answerId": bet.answer_id,
+            }));
+
+            let sell_response = utils::post_endpoint("sell-shares".to_string(), &[], data).await;
+
+            match sell_response {
+                Ok(resp) => {
+                    info!(
+                        "successfully sold shares for bet {} contract id {} answer id {:?}",
+                        bet.id, bet.contract_id, bet.answer_id
+                    );
+                    debug!("full response {:?} for bet id {}", resp, bet.id);
+                }
+                Err(e) => error!("couldn't sell shares: {e}"),
+            };
+        }
+
+        Ok(())
+    }
+
     pub async fn market_search(
         &self,
         term: String,
