@@ -1,16 +1,18 @@
+use clap::Parser;
 use log::{error, info};
 
 use crate::bots::{ArbitrageBot, Bot};
+use crate::cli::Args;
 
 mod bots;
+mod cli;
 mod errors;
 mod manifold_types;
 mod market_handler;
 mod rate_limiter;
 mod utils;
 
-#[tokio::main]
-async fn main() {
+async fn run() {
     env_logger::init();
 
     info!("Starting!");
@@ -49,4 +51,18 @@ async fn main() {
         .await;
 
     bot.run(rx).await;
+}
+
+#[tokio::main]
+async fn main() {
+    let args = Args::parse();
+    if args.run {
+        run().await;
+    } else if args.liquidate {
+        let market_handler = market_handler::MarketHandler::new();
+        match market_handler.liquidate_all_positions().await {
+            Ok(_) => (),
+            Err(e) => error!("{e}"),
+        };
+    }
 }
