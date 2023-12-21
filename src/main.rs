@@ -1,8 +1,9 @@
 use clap::Parser;
+use env_logger;
 use log::{error, info};
 
 use crate::bots::{ArbitrageBot, Bot};
-use crate::cli::Args;
+use crate::cli::{Args, Commands};
 
 mod bots;
 mod cli;
@@ -55,14 +56,18 @@ async fn run() {
 
 #[tokio::main]
 async fn main() {
+    env_logger::init();
+
     let args = Args::parse();
-    if args.run {
-        run().await;
-    } else if args.liquidate {
-        let market_handler = market_handler::MarketHandler::new();
-        match market_handler.liquidate_all_positions().await {
-            Ok(_) => (),
-            Err(e) => error!("{e}"),
-        };
+
+    match args.command {
+        Commands::Run => run().await,
+        Commands::Liquidate => {
+            let market_handler = market_handler::MarketHandler::new();
+            match market_handler.liquidate_all_positions().await {
+                Ok(_) => info!("All positions liquidated"),
+                Err(e) => error!("{e}"),
+            };
+        }
     }
 }

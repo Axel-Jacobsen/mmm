@@ -467,7 +467,7 @@ pub struct Bet {
 
     /// True if this BUY bet has been sold. Optional.
     #[serde(rename = "isSold", skip_serializing_if = "Option::is_none")]
-    is_sold: Option<bool>,
+    pub is_sold: Option<bool>,
 
     /// This field marks a SELL bet. Optional.
     #[serde(rename = "sale", skip_serializing_if = "Option::is_none")]

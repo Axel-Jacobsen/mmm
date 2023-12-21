@@ -118,10 +118,7 @@ impl MarketHandler {
             // why a Option instead of a Result here?
             let posty_packet = match bots_to_mh_rx.recv().await {
                 Some(packet) => packet,
-                None => {
-                    warn!("posty packet rx is none");
-                    continue;
-                }
+                None => continue,
             };
 
             debug!("got posty packet {:?}", posty_packet);
@@ -225,12 +222,20 @@ impl MarketHandler {
             Ok(bets_response) => bets_response
                 .json::<Vec<manifold_types::Bet>>()
                 .await
-                .unwrap(),
+                .unwrap()
+                .into_iter()
+                .filter(|bet| bet.is_sold.is_some_and(|is_sold| !is_sold))
+                .collect::<Vec<manifold_types::Bet>>(),
             Err(e) => {
                 error!("couldn't get bets: {e}");
                 return Err(format!("couldn't get bets: {e}"));
             }
         };
+
+        if bets.is_empty() {
+            info!("no bets to liquidate");
+            return Ok(());
+        }
 
         for bet in bets {
             let data = Some(serde_json::json!({
