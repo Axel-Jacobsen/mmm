@@ -284,7 +284,13 @@ impl MarketHandler {
                 "answerId": bet.answer_id,
             }));
 
-            let sell_response = utils::post_endpoint("sell-shares".to_string(), &[], data).await;
+            let sell_response = rate_limited_post_endpoint(
+                self.write_rate_limiter.clone(),
+                "sell-shares".to_string(),
+                &[],
+                data,
+            )
+            .await;
 
             match sell_response {
                 Ok(resp) => {
