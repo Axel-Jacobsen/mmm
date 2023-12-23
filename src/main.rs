@@ -1,5 +1,4 @@
 use clap::Parser;
-use env_logger;
 use log::{error, info};
 
 use crate::bots::{ArbitrageBot, Bot};
@@ -14,8 +13,6 @@ mod rate_limiter;
 mod utils;
 
 async fn run() {
-    env_logger::init();
-
     info!("Starting!");
 
     let mut market_handler = market_handler::MarketHandler::new();
@@ -27,8 +24,11 @@ async fn run() {
     info!("Logged in as {} (balance {})", me.name, me.balance);
 
     let arb_market = {
-        let market = market_handler
-            .market_search("Which video game confirmed for released in Q1 2024 will average the highest score on Opencritic.com by 4/1/24?".to_string());
+        let market = market_handler.market_search(
+            "Which video game confirmed for released in Q1 2024 will \
+                average the highest score on Opencritic.com by 4/1/24?"
+                .to_string(),
+        );
 
         match market.await {
             Ok(market) => market,
@@ -39,10 +39,7 @@ async fn run() {
         }
     };
 
-    info!(
-        "Found market {}",
-        serde_json::to_string_pretty(&arb_market).unwrap()
-    );
+    info!("Found market {}", arb_market.lite_market.question);
 
     let (bot_to_mh_tx, rx_bot) = market_handler.posty_init("bawt".to_string()).await.unwrap();
     let mut bot = ArbitrageBot::new("bawt".to_string(), arb_market.clone(), bot_to_mh_tx, rx_bot);

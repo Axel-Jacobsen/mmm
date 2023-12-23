@@ -1,6 +1,6 @@
 use std::env;
 
-use log::{debug, error};
+use log::{debug, error, info};
 use serde_json::Value;
 
 use crate::errors;
@@ -33,7 +33,7 @@ pub async fn get_endpoint(
     if resp.status().is_success() {
         Ok(resp)
     } else {
-        error!("api error (bad status code) {resp:?}");
+        error!("api error (bad status code) {resp:?} {query_params:?}");
         Err(resp.error_for_status().unwrap_err())
     }
 }
@@ -50,13 +50,14 @@ pub async fn post_endpoint(
 
     let client = reqwest::Client::new();
     let req = client
-        .post(format!("https://manifold.markets/api/v0/{endpoint}"))
+        .post(format!("https://api.manifold.markets/v0/{endpoint}"))
         .query(&query_params)
         .header("Authorization", get_env_key("MANIFOLD_KEY").unwrap());
 
+    let data_clone = data.clone();
+
     let resp = if let Some(data) = data {
         let reqq = req.json(&data);
-        debug!("request: {:?}", reqq);
         reqq.send().await?
     } else {
         req.send().await?
@@ -65,7 +66,7 @@ pub async fn post_endpoint(
     if resp.status().is_success() {
         Ok(resp)
     } else {
-        error!("api error (bad status code) {resp:?}");
+        error!("api error (bad status code) {resp:?} {query_params:?} {data_clone:?}");
         Err(resp.error_for_status().unwrap_err())
     }
 }

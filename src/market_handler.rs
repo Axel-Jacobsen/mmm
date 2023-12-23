@@ -62,14 +62,47 @@ impl PostyPacket {
     }
 }
 
+async fn rate_limited_post_endpoint(
+    mut write_rate_limiter: rate_limiter::RateLimiter,
+    endpoint: String,
+    query_params: &[(String, String)],
+    data: Option<Value>,
+) -> Result<reqwest::Response, reqwest::Error> {
+    if write_rate_limiter.block_for_average_pace_then_commit(Duration::from_secs(60)) {
+        utils::post_endpoint(endpoint, query_params, data).await
+    } else {
+        panic!(
+            "rate limiter timed out; this shouldn't be possible, \
+            most likely rate limit is set wrong"
+        );
+    }
+}
+
+async fn rate_limited_get_endpoint(
+    mut read_rate_limiter: rate_limiter::RateLimiter,
+    endpoint: String,
+    query_params: &[(String, String)],
+) -> Result<reqwest::Response, reqwest::Error> {
+    if read_rate_limiter.block_for_average_pace_then_commit(Duration::from_secs(1)) {
+        utils::get_endpoint(endpoint, query_params).await
+    } else {
+        panic!(
+            "rate limiter timed out; this shouldn't be possible, \
+            most likely rate limit is set wrong"
+        );
+    }
+}
+
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct MarketHandler {
     halt_flag: Arc<AtomicBool>,
-    read_rate_limiter: rate_limiter::RateLimiter,
 
     bots_to_mh_tx: mpsc::Sender<PostyPacket>,
     bot_out_channel: Arc<Mutex<HashMap<String, broadcast::Sender<PostyPacket>>>>,
+
+    read_rate_limiter: rate_limiter::RateLimiter,
+    write_rate_limiter: rate_limiter::RateLimiter,
 
     bet_channels: HashMap<String, broadcast::Sender<manifold_types::Bet>>,
 }
@@ -91,28 +124,29 @@ impl MarketHandler {
         let write_rate_limiter = rate_limiter::RateLimiter::new(9, Duration::from_secs(60));
 
         tokio::spawn(Self::handle_bot_messages(
+            write_rate_limiter.clone(),
+            read_rate_limiter.clone(),
             halt_flag_clone,
             bots_to_mh_rx,
             bot_out_channel_clone,
-            read_rate_limiter.clone(),
-            write_rate_limiter,
         ));
 
         Self {
             halt_flag,
-            read_rate_limiter,
             bots_to_mh_tx,
             bot_out_channel,
+            read_rate_limiter,
+            write_rate_limiter,
             bet_channels: HashMap::new(),
         }
     }
 
     async fn handle_bot_messages(
+        write_rate_limiter: rate_limiter::RateLimiter,
+        read_rate_limiter: rate_limiter::RateLimiter,
         halt_flag: Arc<AtomicBool>,
         mut bots_to_mh_rx: mpsc::Receiver<PostyPacket>,
         bot_out_channel: Arc<Mutex<HashMap<String, broadcast::Sender<PostyPacket>>>>,
-        mut read_rate_limiter: rate_limiter::RateLimiter,
-        mut write_rate_limiter: rate_limiter::RateLimiter,
     ) {
         while !halt_flag.load(Ordering::SeqCst) {
             // why a Option instead of a Result here?
@@ -125,30 +159,21 @@ impl MarketHandler {
 
             let maybe_res = match posty_packet.method {
                 Method::Get => {
-                    if read_rate_limiter.block_for_average_pace_then_commit(Duration::from_secs(1))
-                    {
-                        utils::get_endpoint(
-                            posty_packet.endpoint.clone(),
-                            &posty_packet.query_params,
-                        )
-                        .await
-                    } else {
-                        panic!("rate limiter timed out; this shouldn't be possible, most likely rate limit is set wrong");
-                    }
+                    rate_limited_get_endpoint(
+                        read_rate_limiter.clone(),
+                        posty_packet.endpoint.clone(),
+                        &posty_packet.query_params,
+                    )
+                    .await
                 }
                 Method::Post => {
-                    if write_rate_limiter
-                        .block_for_average_pace_then_commit(Duration::from_secs(60))
-                    {
-                        utils::post_endpoint(
-                            posty_packet.endpoint.clone(),
-                            &posty_packet.query_params,
-                            posty_packet.data.clone(),
-                        )
-                        .await
-                    } else {
-                        panic!("rate limiter timed out; this shouldn't be possible, most likely rate limit is set wrong");
-                    }
+                    rate_limited_post_endpoint(
+                        write_rate_limiter.clone(),
+                        posty_packet.endpoint.clone(),
+                        &posty_packet.query_params,
+                        posty_packet.data.clone(),
+                    )
+                    .await
                 }
             };
 
@@ -214,30 +239,46 @@ impl MarketHandler {
 
     pub async fn liquidate_all_positions(&self) -> Result<(), String> {
         let me = self.whoami().await;
-        let params = [("userId".to_string(), me.id.clone())];
+        let mut bet_before_id: String = "".to_string();
+        let mut all_bets: Vec<manifold_types::Bet> = vec![];
 
-        let bets_response = utils::get_endpoint("bets".to_string(), &params).await;
+        loop {
+            let params = [
+                ("userId".to_string(), me.id.clone()),
+                ("before".to_string(), bet_before_id),
+            ];
 
-        let bets = match bets_response {
-            Ok(bets_response) => bets_response
-                .json::<Vec<manifold_types::Bet>>()
-                .await
-                .unwrap()
-                .into_iter()
-                .filter(|bet| bet.is_sold.is_some_and(|is_sold| !is_sold))
-                .collect::<Vec<manifold_types::Bet>>(),
-            Err(e) => {
-                error!("couldn't get bets: {e}");
-                return Err(format!("couldn't get bets: {e}"));
+            let bets_response = rate_limited_get_endpoint(
+                self.read_rate_limiter.clone(),
+                "bets".to_string(),
+                &params,
+            )
+            .await;
+
+            let bets = match bets_response {
+                Ok(bets_response) => bets_response
+                    .json::<Vec<manifold_types::Bet>>()
+                    .await
+                    .unwrap()
+                    .into_iter()
+                    .filter(|bet| bet.is_sold.is_some_and(|is_sold| !is_sold))
+                    .collect::<Vec<manifold_types::Bet>>(),
+                Err(e) => {
+                    error!("couldn't get bets: {e}");
+                    return Err(format!("couldn't get bets: {e}"));
+                }
+            };
+
+            if bets.is_empty() {
+                break;
+            } else {
+                debug!("found {} sold bets", bets.len());
+                bet_before_id = bets.last().unwrap().id.clone();
+                all_bets.extend(bets.clone());
             }
-        };
-
-        if bets.is_empty() {
-            info!("no bets to liquidate");
-            return Ok(());
         }
 
-        for bet in bets {
+        for bet in all_bets {
             let data = Some(serde_json::json!({
                 "contractId": bet.contract_id,
                 "answerId": bet.answer_id,
