@@ -1,6 +1,6 @@
 use std::env;
 
-use log::{debug, error, info};
+use log::{debug, error};
 use serde_json::Value;
 
 use crate::errors;
