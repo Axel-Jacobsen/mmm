@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
+use std::fmt::Display;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 enum TimePeriod {
@@ -479,6 +480,17 @@ pub struct Bet {
 
     #[serde(flatten)]
     limit_props: Option<LimitProps>,
+}
+
+impl Display for Bet {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let direction = if self.amount < 0.0 { "NO" } else { "YES" };
+        write!(
+            f,
+            "contract id: {} | answer id: {} | bet: {:.2} {}",
+            self.contract_id, self.answer_id.clone().unwrap_or_default(), self.amount.abs(), direction
+        )
+    }
 }
 
 /// Represents a sale in a bet

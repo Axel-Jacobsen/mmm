@@ -65,10 +65,13 @@ async fn main() {
                 Ok(_) => info!("All positions liquidated"),
                 Err(e) => error!("{e}"),
             };
-        },
+        }
         Commands::Positions => {
             let market_handler = market_handler::MarketHandler::new();
-            let all_my_bets = market_handler.get_all_my_positions().await.expect("couldn't get positions");
+            let all_my_bets = market_handler
+                .get_all_my_positions()
+                .await
+                .expect("couldn't get positions");
 
             if all_my_bets.is_empty() {
                 println!("no positions found");
@@ -76,7 +79,7 @@ async fn main() {
             }
 
             for bet in all_my_bets {
-                println!("{bet:?}");
+                println!("{bet}");
             }
         }
     }
