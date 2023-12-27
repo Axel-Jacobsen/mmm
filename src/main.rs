@@ -19,7 +19,7 @@ async fn run() {
 
     assert!(market_handler.check_alive().await, "Manifold API is down");
 
-    let me = market_handler.whoami().await;
+    let me = market_handler.whoami().await.expect("Failed to get me");
 
     info!("Logged in as {} (balance {})", me.name, me.balance);
 
