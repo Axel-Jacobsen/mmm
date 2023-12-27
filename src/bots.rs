@@ -12,23 +12,24 @@ pub trait Bot {
     async fn run(&mut self, rx: broadcast::Receiver<manifold_types::Bet>);
     fn get_id(&self) -> String;
     fn close(&self);
-    fn botbet_to_posty_packet(&self, bet: manifold_types::BotBet) -> market_handler::PostyPacket;
+    fn botbet_to_posty_packet(&self, bet: manifold_types::BotBet)
+        -> market_handler::InternalPacket;
 }
 
 pub struct ArbitrageBot {
     id: String,
     market: manifold_types::FullMarket,
     answers: HashMap<String, manifold_types::Answer>,
-    bot_to_mh_tx: mpsc::Sender<market_handler::PostyPacket>,
-    mh_to_bot_rx: broadcast::Receiver<market_handler::PostyPacket>,
+    bot_to_mh_tx: mpsc::Sender<market_handler::InternalPacket>,
+    mh_to_bot_rx: broadcast::Receiver<market_handler::InternalPacket>,
 }
 
 impl ArbitrageBot {
     pub fn new(
         id: String,
         market: manifold_types::FullMarket,
-        bot_to_mh_tx: mpsc::Sender<market_handler::PostyPacket>,
-        mh_to_bot_rx: broadcast::Receiver<market_handler::PostyPacket>,
+        bot_to_mh_tx: mpsc::Sender<market_handler::InternalPacket>,
+        mh_to_bot_rx: broadcast::Receiver<market_handler::InternalPacket>,
     ) -> Self {
         let mut id_to_answers = HashMap::new();
 
@@ -153,8 +154,11 @@ impl Bot for ArbitrageBot {
         }
     }
 
-    fn botbet_to_posty_packet(&self, bet: manifold_types::BotBet) -> market_handler::PostyPacket {
-        market_handler::PostyPacket::new(
+    fn botbet_to_posty_packet(
+        &self,
+        bet: manifold_types::BotBet,
+    ) -> market_handler::InternalPacket {
+        market_handler::InternalPacket::new(
             self.get_id(),
             market_handler::Method::Post,
             "bet".to_string(),

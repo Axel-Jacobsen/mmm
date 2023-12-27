@@ -22,7 +22,7 @@ pub enum Method {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct PostyPacket {
+pub struct InternalPacket {
     bot_id: String,
     method: Method,
     endpoint: String,
@@ -31,7 +31,7 @@ pub struct PostyPacket {
     response: Option<String>,
 }
 
-impl PostyPacket {
+impl InternalPacket {
     pub fn new(
         bot_id: String,
         method: Method,
@@ -50,7 +50,7 @@ impl PostyPacket {
         }
     }
 
-    pub fn response_from_existing(packet: &PostyPacket, response: String) -> Self {
+    pub fn response_from_existing(packet: &InternalPacket, response: String) -> Self {
         Self {
             bot_id: packet.bot_id.clone(),
             method: packet.method.clone(),
@@ -98,8 +98,8 @@ async fn rate_limited_get_endpoint(
 pub struct MarketHandler {
     halt_flag: Arc<AtomicBool>,
 
-    bots_to_mh_tx: mpsc::Sender<PostyPacket>,
-    bot_out_channel: Arc<Mutex<HashMap<String, broadcast::Sender<PostyPacket>>>>,
+    bots_to_mh_tx: mpsc::Sender<InternalPacket>,
+    bot_out_channel: Arc<Mutex<HashMap<String, broadcast::Sender<InternalPacket>>>>,
 
     read_rate_limiter: rate_limiter::RateLimiter,
     write_rate_limiter: rate_limiter::RateLimiter,
@@ -112,8 +112,8 @@ impl MarketHandler {
     pub fn new() -> Self {
         let halt_flag = Arc::new(AtomicBool::new(false));
 
-        let (bots_to_mh_tx, bots_to_mh_rx) = mpsc::channel::<PostyPacket>(256);
-        let bot_out_channel: Arc<Mutex<HashMap<String, broadcast::Sender<PostyPacket>>>> =
+        let (bots_to_mh_tx, bots_to_mh_rx) = mpsc::channel::<InternalPacket>(256);
+        let bot_out_channel: Arc<Mutex<HashMap<String, broadcast::Sender<InternalPacket>>>> =
             Arc::new(Mutex::new(HashMap::new()));
 
         let halt_flag_clone = halt_flag.clone();
@@ -145,8 +145,8 @@ impl MarketHandler {
         write_rate_limiter: rate_limiter::RateLimiter,
         read_rate_limiter: rate_limiter::RateLimiter,
         halt_flag: Arc<AtomicBool>,
-        mut bots_to_mh_rx: mpsc::Receiver<PostyPacket>,
-        bot_out_channel: Arc<Mutex<HashMap<String, broadcast::Sender<PostyPacket>>>>,
+        mut bots_to_mh_rx: mpsc::Receiver<InternalPacket>,
+        bot_out_channel: Arc<Mutex<HashMap<String, broadcast::Sender<InternalPacket>>>>,
     ) {
         while !halt_flag.load(Ordering::SeqCst) {
             // why a Option instead of a Result here?
@@ -181,7 +181,7 @@ impl MarketHandler {
                 Ok(res) => res,
                 Err(e) => {
                     error!("api error {e}");
-                    let packet = PostyPacket::response_from_existing(
+                    let packet = InternalPacket::response_from_existing(
                         &posty_packet,
                         format!("api error {e}"),
                     );
@@ -202,7 +202,7 @@ impl MarketHandler {
             .unwrap();
 
             let bot_id = posty_packet.bot_id;
-            let packet = PostyPacket {
+            let packet = InternalPacket {
                 bot_id: bot_id.clone(),
                 method: posty_packet.method,
                 endpoint: posty_packet.endpoint,
@@ -226,19 +226,30 @@ impl MarketHandler {
     }
 
     pub async fn check_alive(&self) -> bool {
-        let resp = utils::get_endpoint("me".to_string(), &[]).await.unwrap();
+        let resp = rate_limited_get_endpoint(self.read_rate_limiter.clone(), "me".to_string(), &[])
+            .await
+            .unwrap();
 
         resp.json::<manifold_types::User>().await.is_ok()
     }
 
-    pub async fn whoami(&self) -> manifold_types::User {
-        let resp = utils::get_endpoint("me".to_string(), &[]).await.unwrap();
+    pub async fn whoami(&self) -> Result<manifold_types::User, reqwest::Error> {
+        let resp = rate_limited_get_endpoint(self.read_rate_limiter.clone(), "me".to_string(), &[])
+            .await
+            .unwrap();
 
-        resp.json::<manifold_types::User>().await.unwrap()
+        resp.json::<manifold_types::User>().await
     }
 
     pub async fn liquidate_all_positions(&self) -> Result<(), String> {
-        let me = self.whoami().await;
+        let me = match self.whoami().await {
+            Ok(me) => me,
+            Err(e) => {
+                error!("couldn't get me: {e}");
+                return Err(format!("couldn't get me: {e}"));
+            }
+        };
+
         let mut bet_before_id: String = "".to_string();
         let mut all_bets: Vec<manifold_types::Bet> = vec![];
 
@@ -311,7 +322,8 @@ impl MarketHandler {
         &self,
         term: String,
     ) -> Result<manifold_types::FullMarket, errors::ReqwestResponseParsing> {
-        let resp = utils::get_endpoint(
+        let resp = rate_limited_get_endpoint(
+            self.read_rate_limiter.clone(),
             "search-markets".to_string(),
             &[
                 ("term".to_string(), term.clone()),
@@ -337,9 +349,13 @@ impl MarketHandler {
             Err(e) => Err(e),
         }?;
 
-        let full_market =
-            utils::get_endpoint(format!("market/{}", lite_market.as_ref().unwrap().id), &[])
-                .await?;
+        let full_market = rate_limited_get_endpoint(
+            self.read_rate_limiter.clone(),
+            format!("market/{}", lite_market.as_ref().unwrap().id),
+            &[],
+        )
+        .await
+        .unwrap();
 
         utils::response_into::<manifold_types::FullMarket>(full_market).await
     }
@@ -351,7 +367,13 @@ impl MarketHandler {
     pub async fn posty_init(
         &mut self,
         bot_id: String,
-    ) -> Result<(mpsc::Sender<PostyPacket>, broadcast::Receiver<PostyPacket>), String> {
+    ) -> Result<
+        (
+            mpsc::Sender<InternalPacket>,
+            broadcast::Receiver<InternalPacket>,
+        ),
+        String,
+    > {
         // if id is in hashmap, bail
         if self.bot_out_channel.lock().unwrap().contains_key(&bot_id) {
             return Err(format!("Bot {bot_id} already exists"));
@@ -359,7 +381,7 @@ impl MarketHandler {
 
         let bot_to_mh_tx = self.bots_to_mh_tx.clone();
 
-        let (tx_bot, rx_bot) = broadcast::channel::<PostyPacket>(4);
+        let (tx_bot, rx_bot) = broadcast::channel::<InternalPacket>(4);
         self.bot_out_channel.lock().unwrap().insert(bot_id, tx_bot);
 
         Ok((bot_to_mh_tx, rx_bot))
@@ -399,9 +421,13 @@ impl MarketHandler {
         let mut base_query = query_params.to_vec();
         base_query.push(("limit".to_string(), "1".to_string()));
 
-        let response = utils::get_endpoint("bets".to_string(), &base_query)
-            .await
-            .expect("Couldn't get most recent bet from api");
+        let response = rate_limited_get_endpoint(
+            self.read_rate_limiter.clone(),
+            "bets".to_string(),
+            &base_query,
+        )
+        .await
+        .expect("Couldn't get most recent bet from api");
 
         let mut most_recent_id = utils::response_into::<Vec<manifold_types::Bet>>(response)
             .await
@@ -429,7 +455,13 @@ impl MarketHandler {
                     continue;
                 }
 
-                let resp = match utils::get_endpoint("bets".to_string(), &params).await {
+                let resp = match rate_limited_get_endpoint(
+                    read_rate_limiter_clone.clone(),
+                    "bets".to_string(),
+                    &params,
+                )
+                .await
+                {
                     Ok(resp) => resp,
                     Err(e) => {
                         warn!("continuing... couldn't get most recent bet due to api error: {e}");
