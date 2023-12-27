@@ -272,7 +272,7 @@ impl MarketHandler {
                     .await
                     .unwrap()
                     .into_iter()
-                    .filter(|bet| bet.is_sold.is_some_and(|is_sold| !is_sold))
+                    .filter(|bet| !bet.is_sold)
                     .collect::<Vec<manifold_types::Bet>>(),
                 Err(e) => {
                     error!("couldn't get bets: {e}");

@@ -466,8 +466,8 @@ pub struct Bet {
     challenge_slug: Option<String>,
 
     /// True if this BUY bet has been sold. Optional.
-    #[serde(rename = "isSold", skip_serializing_if = "Option::is_none")]
-    pub is_sold: Option<bool>,
+    #[serde(default, rename = "isSold")]
+    pub is_sold: bool,
 
     /// This field marks a SELL bet. Optional.
     #[serde(rename = "sale", skip_serializing_if = "Option::is_none")]
