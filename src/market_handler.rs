@@ -241,7 +241,7 @@ impl MarketHandler {
         resp.json::<manifold_types::User>().await
     }
 
-    pub async fn liquidate_all_positions(&self) -> Result<(), String> {
+    pub async fn get_all_my_positions(&self) -> Result<Vec<manifold_types::Bet>, String> {
         let me = match self.whoami().await {
             Ok(me) => me,
             Err(e) => {
@@ -288,6 +288,11 @@ impl MarketHandler {
                 all_bets.extend(bets.clone());
             }
         }
+        Ok(all_bets)
+    }
+
+    pub async fn liquidate_all_positions(&self) -> Result<(), String> {
+        let all_bets = self.get_all_my_positions().await?;
 
         for bet in all_bets {
             let data = Some(serde_json::json!({

@@ -12,6 +12,9 @@ pub enum Commands {
     /// Run the bot
     Run,
 
-    /// Print the current version
+    /// Liquidate all positions
     Liquidate,
+
+    /// Print all positions
+    Positions,
 }
