@@ -5,6 +5,8 @@ use serde_json::Value;
 
 use crate::errors;
 
+const MANIFOLD_API_URL: &str = "https://api.manifold.markets/v0";
+
 fn get_env_key(key: &str) -> Result<String, String> {
     match env::var(key) {
         Ok(key) => Ok(format!("Key {key}")),
@@ -24,7 +26,7 @@ pub async fn get_endpoint(
     let client = reqwest::Client::new();
 
     let req = client
-        .get(format!("https://manifold.markets/api/v0/{endpoint}"))
+        .get(format!("{MANIFOLD_API_URL}/{endpoint}"))
         .query(&query_params)
         .header("Authorization", get_env_key("MANIFOLD_KEY").unwrap());
 
@@ -50,7 +52,7 @@ pub async fn post_endpoint(
 
     let client = reqwest::Client::new();
     let req = client
-        .post(format!("https://api.manifold.markets/v0/{endpoint}"))
+        .post(format!("{MANIFOLD_API_URL}/{endpoint}"))
         .query(&query_params)
         .header("Authorization", get_env_key("MANIFOLD_KEY").unwrap());
 
