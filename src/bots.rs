@@ -68,7 +68,7 @@ impl ArbitrageBot {
 
         for answer in self.answers.values() {
             bets.push(manifold_types::BotBet {
-                amount: 100. * (1. / answer.probability) / inverse_sum,
+                amount: 500. * (1. / answer.probability) / inverse_sum,
                 contract_id: self.market.lite_market.id.clone(),
                 outcome: manifold_types::MarketOutcome::Yes,
                 answer_id: Some(answer.id.clone()),

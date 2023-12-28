@@ -328,13 +328,12 @@ impl MarketHandler {
 
         for pos in open_positions {
             let data = Some(serde_json::json!({
-                "contractId": pos.contract_id,
                 "answerId": pos.answer_id,
             }));
 
             let sell_response = rate_limited_post_endpoint(
                 self.write_rate_limiter.clone(),
-                "sell-shares".to_string(),
+                format!("market/{}/sell", pos.contract_id),
                 &[],
                 data,
             )
