@@ -259,6 +259,7 @@ impl MarketHandler {
             let params = [
                 ("userId".to_string(), me.id.clone()),
                 ("before".to_string(), bet_before_id),
+                ("limit".to_string(), "1000".to_string()),
             ];
 
             let bets_response = rate_limited_get_endpoint(
@@ -276,18 +277,21 @@ impl MarketHandler {
                 }
             };
 
-            if bets.is_empty() {
+            all_bets.extend(bets.clone());
+
+            if bets.len() < 1000 {
                 break;
             } else {
-                debug!("found {} sold bets", bets.len());
+                debug!("found {} bets", bets.len());
                 bet_before_id = bets.last().unwrap().id.clone();
-                all_bets.extend(bets.clone());
             }
         }
         Ok(all_bets)
     }
 
-    pub async fn get_active_positions(all_bets: Vec<manifold_types::Bet>) -> Vec<manifold_types::Position> {
+    pub async fn get_active_positions(
+        all_bets: Vec<manifold_types::Bet>,
+    ) -> Vec<manifold_types::Position> {
         #[derive(Hash, Eq, PartialEq)]
         struct PositionKey {
             outcome: String,
@@ -308,7 +312,7 @@ impl MarketHandler {
 
         all_positions
             .into_iter()
-            .filter(|(_, total_amount_sum)| *total_amount_sum != 0.0)
+            .filter(|(_, total_amount_sum)| *total_amount_sum > 1e-10)
             .map(|(position, total_amount_sum)| manifold_types::Position {
                 outcome: position.outcome,
                 contract_id: position.contract_id,
@@ -320,11 +324,12 @@ impl MarketHandler {
 
     pub async fn liquidate_all_positions(&self) -> Result<(), errors::ReqwestResponseParsing> {
         let all_bets = self.get_all_my_positions().await?;
+        let open_positions = Self::get_active_positions(all_bets.clone()).await;
 
-        for bet in all_bets {
+        for pos in open_positions {
             let data = Some(serde_json::json!({
-                "contractId": bet.contract_id,
-                "answerId": bet.answer_id,
+                "contractId": pos.contract_id,
+                "answerId": pos.answer_id,
             }));
 
             let sell_response = rate_limited_post_endpoint(
@@ -338,10 +343,13 @@ impl MarketHandler {
             match sell_response {
                 Ok(resp) => {
                     info!(
-                        "successfully sold shares for bet {} contract id {} answer id {:?}",
-                        bet.id, bet.contract_id, bet.answer_id
+                        "successfully sold {} {} shares for contract id {} answer id {:?}",
+                        pos.amount, pos.outcome, pos.contract_id, pos.answer_id
                     );
-                    debug!("full response {:?} for bet id {}", resp, bet.id);
+                    debug!(
+                        "full response {:?} for contract {} answer {:?}",
+                        resp, pos.contract_id, pos.answer_id
+                    );
                 }
                 Err(e) => error!("couldn't sell shares: {e}"),
             };

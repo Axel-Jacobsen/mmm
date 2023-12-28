@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
-use std::hash::Hash;
 use std::fmt::Display;
+use std::hash::Hash;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 enum TimePeriod {
@@ -507,15 +507,18 @@ pub struct Position {
 
 impl Display for Position {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let buysell = if self.amount < 0.0 { "SELL" } else { "BUY" };
+        let answer_id_str = if let Some(answer_id) = &self.answer_id {
+            format!("| answer id: {}", answer_id)
+        } else {
+            "".to_string()
+        };
+
         write!(
             f,
-            "contract id: {} | answer id: {} | bet: {:.2} {} {}",
-            self.contract_id,
-            self.answer_id.clone().unwrap_or_default(),
+            "bet: {:.4} {} | contract id: {} {answer_id_str}",
             self.amount.abs(),
-            buysell,
-            self.outcome
+            self.outcome,
+            self.contract_id,
         )
     }
 }

@@ -78,7 +78,11 @@ async fn main() {
                 return;
             }
 
-            let active_positions = market_handler::MarketHandler::get_active_positions(all_my_bets).await;
+            let mut active_positions =
+                market_handler::MarketHandler::get_active_positions(all_my_bets).await;
+            active_positions.sort_unstable_by_key(|position| {
+                (position.contract_id.clone(), position.answer_id.clone())
+            });
 
             for position in active_positions {
                 println!("{position}");
