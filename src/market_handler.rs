@@ -241,12 +241,14 @@ impl MarketHandler {
         resp.json::<manifold_types::User>().await
     }
 
-    pub async fn get_all_my_positions(&self) -> Result<Vec<manifold_types::Bet>, String> {
+    pub async fn get_all_my_positions(
+        &self,
+    ) -> Result<Vec<manifold_types::Bet>, errors::ReqwestResponseParsing> {
         let me = match self.whoami().await {
             Ok(me) => me,
             Err(e) => {
                 error!("couldn't get me: {e}");
-                return Err(format!("couldn't get me: {e}"));
+                return Err(format!("couldn't get me: {e}").into());
             }
         };
 
@@ -267,16 +269,10 @@ impl MarketHandler {
             .await;
 
             let bets = match bets_response {
-                Ok(bets_response) => bets_response
-                    .json::<Vec<manifold_types::Bet>>()
-                    .await
-                    .unwrap()
-                    .into_iter()
-                    .filter(|bet| !bet.is_sold)
-                    .collect::<Vec<manifold_types::Bet>>(),
+                Ok(bets_response) => bets_response.json::<Vec<manifold_types::Bet>>().await?,
                 Err(e) => {
                     error!("couldn't get bets: {e}");
-                    return Err(format!("couldn't get bets: {e}"));
+                    return Err(format!("couldn't get bets: {e}").into());
                 }
             };
 
@@ -291,7 +287,38 @@ impl MarketHandler {
         Ok(all_bets)
     }
 
-    pub async fn liquidate_all_positions(&self) -> Result<(), String> {
+    pub async fn get_active_positions(all_bets: Vec<manifold_types::Bet>) -> Vec<manifold_types::Position> {
+        #[derive(Hash, Eq, PartialEq)]
+        struct PositionKey {
+            outcome: String,
+            contract_id: String,
+            answer_id: Option<String>,
+        }
+
+        let mut all_positions: HashMap<PositionKey, f64> = HashMap::new();
+
+        for bet in all_bets {
+            let position = PositionKey {
+                outcome: bet.outcome,
+                contract_id: bet.contract_id,
+                answer_id: bet.answer_id,
+            };
+            *all_positions.entry(position).or_insert(0.0) += bet.amount;
+        }
+
+        all_positions
+            .into_iter()
+            .filter(|(_, total_amount_sum)| *total_amount_sum != 0.0)
+            .map(|(position, total_amount_sum)| manifold_types::Position {
+                outcome: position.outcome,
+                contract_id: position.contract_id,
+                answer_id: position.answer_id,
+                amount: total_amount_sum,
+            })
+            .collect::<Vec<manifold_types::Position>>()
+    }
+
+    pub async fn liquidate_all_positions(&self) -> Result<(), errors::ReqwestResponseParsing> {
         let all_bets = self.get_all_my_positions().await?;
 
         for bet in all_bets {

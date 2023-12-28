@@ -78,8 +78,10 @@ async fn main() {
                 return;
             }
 
-            for bet in all_my_bets {
-                println!("{bet}");
+            let active_positions = market_handler::MarketHandler::get_active_positions(all_my_bets).await;
+
+            for position in active_positions {
+                println!("{position}");
             }
         }
     }

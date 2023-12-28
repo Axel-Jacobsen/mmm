@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::fmt::Display;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
@@ -423,13 +424,13 @@ pub struct Bet {
     created_time: u64,
 
     /// Bet size; negative if SELL bet
-    amount: f64,
+    pub amount: f64,
 
     /// Optional loan amount
     #[serde(rename = "loanAmount", skip_serializing_if = "Option::is_none")]
     loan_amount: Option<f64>,
 
-    outcome: String,
+    pub outcome: String,
 
     /// Dynamic parimutuel pool weight or fixed; negative if SELL bet
     shares: f64,
@@ -466,10 +467,9 @@ pub struct Bet {
     #[serde(rename = "challengeSlug", skip_serializing_if = "Option::is_none")]
     challenge_slug: Option<String>,
 
-    /// True if this BUY bet has been sold. Optional.
-    #[serde(default, rename = "isSold")]
-    pub is_sold: bool,
-
+    // /// True if this BUY bet has been sold. Optional.
+    // #[serde(default, rename = "isSold")]
+    // pub is_sold: bool,
     /// This field marks a SELL bet. Optional.
     #[serde(rename = "sale", skip_serializing_if = "Option::is_none")]
     sale: Option<Sale>,
@@ -484,11 +484,38 @@ pub struct Bet {
 
 impl Display for Bet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let direction = if self.amount < 0.0 { "NO" } else { "YES" };
+        let buysell = if self.amount < 0.0 { "SELL" } else { "BUY" };
         write!(
             f,
-            "contract id: {} | answer id: {} | bet: {:.2} {}",
-            self.contract_id, self.answer_id.clone().unwrap_or_default(), self.amount.abs(), direction
+            "contract id: {} | answer id: {} | bet: {:.2} {} {}",
+            self.contract_id,
+            self.answer_id.clone().unwrap_or_default(),
+            self.amount.abs(),
+            buysell,
+            self.outcome
+        )
+    }
+}
+
+#[derive(Debug)]
+pub struct Position {
+    pub outcome: String,
+    pub contract_id: String,
+    pub answer_id: Option<String>,
+    pub amount: f64,
+}
+
+impl Display for Position {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let buysell = if self.amount < 0.0 { "SELL" } else { "BUY" };
+        write!(
+            f,
+            "contract id: {} | answer id: {} | bet: {:.2} {} {}",
+            self.contract_id,
+            self.answer_id.clone().unwrap_or_default(),
+            self.amount.abs(),
+            buysell,
+            self.outcome
         )
     }
 }

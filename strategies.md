@@ -48,3 +48,8 @@ Pros:
     - easy to implement
 Cons:
     - risky? would have to think carefully about risk
+
+
+## Yes/No (volatility) strategy
+
+- https://discord.com/channels/915138780216823849/1185319117964714075
