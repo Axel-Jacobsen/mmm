@@ -67,10 +67,7 @@ impl EWMABot {
 
     async fn make_trades(&mut self, trades: Vec<market_handler::InternalPacket>) {
         for trade in trades {
-            self.bot_to_mh_tx
-                .send(trade)
-                .await
-                .unwrap();
+            self.bot_to_mh_tx.send(trade).await.unwrap();
 
             match self.mh_to_bot_rx.recv().await {
                 Ok(resp) => {
@@ -140,7 +137,7 @@ impl Bot for EWMABot {
                     );
 
                     self.make_trades(vec![buy_bet]).await;
-                },
+                }
                 manifold_types::Side::Sell => {
                     let sell_bet = market_handler::InternalPacket::new(
                         self.get_id(),
@@ -150,11 +147,11 @@ impl Bot for EWMABot {
                         Some(serde_json::json!({
                             "outcome": bet.outcome,
                             "shares": bet.amount
-                        }))
+                        })),
                     );
 
                     self.make_trades(vec![sell_bet]).await;
-                },
+                }
                 manifold_types::Side::NoOp => {}
             }
 

@@ -71,8 +71,20 @@ async fn run() {
         .await
         .unwrap();
 
-    let mut arb_bot = ArbitrageBot::new("bawt".to_string(), arb_market.clone(), bot_to_mh_tx.clone(), arb_rx_bot);
-    let mut ewma_bot = EWMABot::new("ewma_bawt".to_string(), sudoku_market.clone(), bot_to_mh_tx.clone(), ewma_rx_bot, 0.4, 0.7);
+    let mut arb_bot = ArbitrageBot::new(
+        "bawt".to_string(),
+        arb_market.clone(),
+        bot_to_mh_tx.clone(),
+        arb_rx_bot,
+    );
+    let mut ewma_bot = EWMABot::new(
+        "ewma_bawt".to_string(),
+        sudoku_market.clone(),
+        bot_to_mh_tx.clone(),
+        ewma_rx_bot,
+        0.4,
+        0.7,
+    );
 
     let arb_rx = market_handler
         .get_bet_stream_for_market_id(arb_market.lite_market.id)

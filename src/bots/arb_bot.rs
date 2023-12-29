@@ -106,7 +106,6 @@ impl ArbitrageBot {
             })),
         )
     }
-
 }
 
 #[async_trait]
