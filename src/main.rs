@@ -1,7 +1,6 @@
 use clap::Parser;
 use log::{error, info};
 
-use crate::bots::{ArbitrageBot, Bot};
 use crate::cli::{Args, Commands};
 
 mod bots;
@@ -11,6 +10,9 @@ mod manifold_types;
 mod market_handler;
 mod rate_limiter;
 mod utils;
+
+use crate::bots::arb_bot::ArbitrageBot;
+use crate::bots::Bot;
 
 async fn run() {
     info!("Starting!");
