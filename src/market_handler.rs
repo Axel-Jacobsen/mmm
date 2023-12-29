@@ -150,28 +150,28 @@ impl MarketHandler {
     ) {
         while !halt_flag.load(Ordering::SeqCst) {
             // why a Option instead of a Result here?
-            let posty_packet = match bots_to_mh_rx.recv().await {
+            let internal_coms_packet = match bots_to_mh_rx.recv().await {
                 Some(packet) => packet,
                 None => continue,
             };
 
-            debug!("got posty packet {:?}", posty_packet);
+            debug!("got internal_coms packet {:?}", internal_coms_packet);
 
-            let maybe_res = match posty_packet.method {
+            let maybe_res = match internal_coms_packet.method {
                 Method::Get => {
                     rate_limited_get_endpoint(
                         read_rate_limiter.clone(),
-                        posty_packet.endpoint.clone(),
-                        &posty_packet.query_params,
+                        internal_coms_packet.endpoint.clone(),
+                        &internal_coms_packet.query_params,
                     )
                     .await
                 }
                 Method::Post => {
                     rate_limited_post_endpoint(
                         write_rate_limiter.clone(),
-                        posty_packet.endpoint.clone(),
-                        &posty_packet.query_params,
-                        posty_packet.data.clone(),
+                        internal_coms_packet.endpoint.clone(),
+                        &internal_coms_packet.query_params,
+                        internal_coms_packet.data.clone(),
                     )
                     .await
                 }
@@ -182,17 +182,17 @@ impl MarketHandler {
                 Err(e) => {
                     error!("api error {e}");
                     let packet = InternalPacket::response_from_existing(
-                        &posty_packet,
+                        &internal_coms_packet,
                         format!("api error {e}"),
                     );
 
                     bot_out_channel
                         .lock()
                         .unwrap()
-                        .get(&posty_packet.bot_id)
+                        .get(&internal_coms_packet.bot_id)
                         .unwrap()
                         .send(packet)
-                        .expect("couldn't send posty packet");
+                        .expect("couldn't send internal_coms packet");
 
                     continue;
                 }
@@ -201,12 +201,12 @@ impl MarketHandler {
             .await
             .unwrap();
 
-            let bot_id = posty_packet.bot_id;
+            let bot_id = internal_coms_packet.bot_id;
             let packet = InternalPacket {
                 bot_id: bot_id.clone(),
-                method: posty_packet.method,
-                endpoint: posty_packet.endpoint,
-                query_params: posty_packet.query_params,
+                method: internal_coms_packet.method,
+                endpoint: internal_coms_packet.endpoint,
+                query_params: internal_coms_packet.query_params,
                 data: None,
                 response: Some(res),
             };
@@ -217,7 +217,7 @@ impl MarketHandler {
                 .get(&bot_id)
                 .unwrap()
                 .send(packet)
-                .expect("couldn't send posty packet");
+                .expect("couldn't send internal_coms packet");
         }
     }
 
@@ -403,7 +403,7 @@ impl MarketHandler {
     /// bots send bets to the MarketHandler, and is many-to-one. The Reciever
     /// channel is used by the MarketHandler to send the responses, and is
     /// one-to-one. Each channel
-    pub async fn posty_init(
+    pub async fn internal_coms_init(
         &mut self,
         bot_id: String,
     ) -> Result<

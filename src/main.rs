@@ -41,7 +41,10 @@ async fn run() {
 
     info!("Found market {}", arb_market.lite_market.question);
 
-    let (bot_to_mh_tx, rx_bot) = market_handler.posty_init("bawt".to_string()).await.unwrap();
+    let (bot_to_mh_tx, rx_bot) = market_handler
+        .internal_coms_init("bawt".to_string())
+        .await
+        .unwrap();
     let mut bot = ArbitrageBot::new("bawt".to_string(), arb_market.clone(), bot_to_mh_tx, rx_bot);
 
     let rx = market_handler

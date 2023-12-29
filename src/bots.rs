@@ -12,8 +12,10 @@ pub trait Bot {
     async fn run(&mut self, rx: broadcast::Receiver<manifold_types::Bet>);
     fn get_id(&self) -> String;
     fn close(&self);
-    fn botbet_to_posty_packet(&self, bet: manifold_types::BotBet)
-        -> market_handler::InternalPacket;
+    fn botbet_to_internal_coms_packet(
+        &self,
+        bet: manifold_types::BotBet,
+    ) -> market_handler::InternalPacket;
 }
 
 pub struct ArbitrageBot {
@@ -81,7 +83,7 @@ impl ArbitrageBot {
     async fn make_bets(&mut self, bets: Vec<manifold_types::BotBet>) {
         for bet in bets {
             self.bot_to_mh_tx
-                .send(self.botbet_to_posty_packet(bet))
+                .send(self.botbet_to_internal_coms_packet(bet))
                 .await
                 .unwrap();
 
@@ -154,7 +156,7 @@ impl Bot for ArbitrageBot {
         }
     }
 
-    fn botbet_to_posty_packet(
+    fn botbet_to_internal_coms_packet(
         &self,
         bet: manifold_types::BotBet,
     ) -> market_handler::InternalPacket {
