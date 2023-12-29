@@ -38,7 +38,6 @@ impl InternalPacket {
         endpoint: String,
         query_params: Vec<(String, String)>,
         data: Option<Value>,
-        response: Option<String>,
     ) -> Self {
         Self {
             bot_id,
@@ -46,7 +45,7 @@ impl InternalPacket {
             endpoint,
             query_params,
             data,
-            response,
+            response: None,
         }
     }
 

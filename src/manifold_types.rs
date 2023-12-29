@@ -38,6 +38,13 @@ impl fmt::Display for MarketOutcome {
     }
 }
 
+#[derive(Debug)]
+pub enum Side {
+    Buy,
+    Sell,
+    NoOp,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub enum MarketMechanism {
     #[serde(rename = "cpmm-1")]
@@ -371,27 +378,26 @@ pub struct PeriodMetric {
 }
 
 /// https://docs.manifold.markets/api#post-v0bet
-///
-#[derive(Serialize, Debug, Clone)]
+#[derive(Debug)]
 pub struct BotBet {
     /// amount: Required. The amount to bet, in mana, before fees.
-    pub amount: f64,
+    pub amount: Option<f64>,
 
     /// contractId: Required. The ID of the contract (market) to bet on.
-    #[serde(rename = "contractId")]
     pub contract_id: String,
+    ///
+    /// Optional. The ID of the answer to bet on for free response markets.
+    pub answer_id: Option<String>,
 
     /// outcome: Required. The outcome to bet on. For binary markets, this is YES or NO.
     /// For free response markets, this is the ID of the free response answer.
     /// For numeric markets, this is a string representing the target bucket,
     /// and an additional value parameter is required which is a number representing the target value.
     /// (Bet on numeric markets at your own peril.)
-    #[serde(flatten)]
     pub outcome: MarketOutcome,
 
-    /// Optional. The ID of the answer to bet on for free response markets.
-    #[serde(rename = "answerId", skip_serializing_if = "Option::is_none")]
-    pub answer_id: Option<String>,
+    /// Buy or sell?
+    pub side: Side,
 }
 
 /// Represents a bet

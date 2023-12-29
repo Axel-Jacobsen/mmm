@@ -60,10 +60,11 @@ impl ArbitrageBot {
 
         for answer in self.answers.values() {
             bets.push(manifold_types::BotBet {
-                amount: 500. * (1. / answer.probability) / inverse_sum,
+                amount: Some(500. * (1. / answer.probability) / inverse_sum),
                 contract_id: self.market.lite_market.id.clone(),
                 outcome: manifold_types::MarketOutcome::Yes,
                 answer_id: Some(answer.id.clone()),
+                side: manifold_types::Side::Buy,
             });
         }
 
@@ -87,6 +88,25 @@ impl ArbitrageBot {
             }
         }
     }
+
+    fn botbet_to_internal_coms_packet(
+        &self,
+        bet: manifold_types::BotBet,
+    ) -> market_handler::InternalPacket {
+        market_handler::InternalPacket::new(
+            self.get_id(),
+            market_handler::Method::Post,
+            "bet".to_string(),
+            vec![],
+            Some(serde_json::json!({
+                "amount": bet.amount,
+                "contractId": bet.contract_id,
+                "outcome": bet.outcome,
+                "answerId": bet.answer_id
+            })),
+        )
+    }
+
 }
 
 #[async_trait]
@@ -144,25 +164,6 @@ impl Bot for ArbitrageBot {
 
             i += 1;
         }
-    }
-
-    fn botbet_to_internal_coms_packet(
-        &self,
-        bet: manifold_types::BotBet,
-    ) -> market_handler::InternalPacket {
-        market_handler::InternalPacket::new(
-            self.get_id(),
-            market_handler::Method::Post,
-            "bet".to_string(),
-            vec![],
-            Some(serde_json::json!({
-                "amount": bet.amount,
-                "contractId": bet.contract_id,
-                "outcome": bet.outcome,
-                "answerId": bet.answer_id
-            })),
-            None,
-        )
     }
 
     fn get_id(&self) -> String {

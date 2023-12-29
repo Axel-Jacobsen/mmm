@@ -12,6 +12,7 @@ mod rate_limiter;
 mod utils;
 
 use crate::bots::arb_bot::ArbitrageBot;
+use crate::bots::ewma_bot::EWMABot;
 use crate::bots::Bot;
 
 async fn run() {
@@ -35,25 +36,54 @@ async fn run() {
         match market.await {
             Ok(market) => market,
             Err(e) => {
-                error!("market is err {e}");
+                error!("couldn't find arb market {e}");
+                return;
+            }
+        }
+    };
+
+    let sudoku_market = {
+        let market = market_handler.market_search(
+            "Will a prompt that enables GPT-4 to solve easy Sudoku \
+            puzzles be found? (2023)"
+                .to_string(),
+        );
+
+        match market.await {
+            Ok(market) => market,
+            Err(e) => {
+                error!("couldn't find ewma market {e}");
                 return;
             }
         }
     };
 
     info!("Found market {}", arb_market.lite_market.question);
+    info!("Found market {}", sudoku_market.lite_market.question);
 
-    let (bot_to_mh_tx, rx_bot) = market_handler
+    let (bot_to_mh_tx, arb_rx_bot) = market_handler
         .internal_coms_init("bawt".to_string())
         .await
         .unwrap();
-    let mut bot = ArbitrageBot::new("bawt".to_string(), arb_market.clone(), bot_to_mh_tx, rx_bot);
 
-    let rx = market_handler
+    let (_, ewma_rx_bot) = market_handler
+        .internal_coms_init("ewma_bawt".to_string())
+        .await
+        .unwrap();
+
+    let mut arb_bot = ArbitrageBot::new("bawt".to_string(), arb_market.clone(), bot_to_mh_tx.clone(), arb_rx_bot);
+    let mut ewma_bot = EWMABot::new("ewma_bawt".to_string(), sudoku_market.clone(), bot_to_mh_tx.clone(), ewma_rx_bot, 0.4, 0.7);
+
+    let arb_rx = market_handler
         .get_bet_stream_for_market_id(arb_market.lite_market.id)
         .await;
 
-    bot.run(rx).await;
+    let ewma_rx = market_handler
+        .get_bet_stream_for_market_id(sudoku_market.lite_market.id)
+        .await;
+
+    arb_bot.run(arb_rx).await;
+    ewma_bot.run(ewma_rx).await;
 }
 
 #[tokio::main]
@@ -85,6 +115,7 @@ async fn main() {
 
             let mut active_positions =
                 market_handler::MarketHandler::get_active_positions(all_my_bets).await;
+
             active_positions.sort_unstable_by_key(|position| {
                 (position.contract_id.clone(), position.answer_id.clone())
             });
