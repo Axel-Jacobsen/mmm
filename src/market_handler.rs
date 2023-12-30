@@ -188,7 +188,6 @@ impl MarketHandler {
         bot_out_channel: Arc<Mutex<HashMap<String, broadcast::Sender<InternalPacket>>>>,
     ) {
         while !halt_flag.load(Ordering::SeqCst) {
-            // why a Option instead of a Result here?
             let internal_coms_packet = match bots_to_mh_rx.recv().await {
                 Some(packet) => packet,
                 None => continue,
