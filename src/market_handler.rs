@@ -498,13 +498,14 @@ impl MarketHandler {
                     continue;
                 }
 
-                let resp = match rate_limited_get_endpoint(
+                let maybe_resp = rate_limited_get_endpoint(
                     read_rate_limiter_clone.clone(),
                     "bets".to_string(),
                     &params,
                 )
-                .await
-                {
+                .await;
+
+                let resp = match maybe_resp {
                     Ok(resp) => resp,
                     Err(e) => {
                         warn!("continuing... couldn't get most recent bet due to api error: {e}");
@@ -524,6 +525,7 @@ impl MarketHandler {
                     most_recent_id = bets.last().unwrap().id.clone();
                 }
 
+                // TODO remove this! We have our own rate limiter
                 sleep(Duration::from_millis(500)).await;
             }
         });
