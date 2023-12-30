@@ -92,6 +92,32 @@ async fn rate_limited_get_endpoint(
     }
 }
 
+pub async fn handle_internal_coms(
+    read_rate_limiter: &rate_limiter::RateLimiter,
+    write_rate_limiter: &rate_limiter::RateLimiter,
+    internal_coms_packet: &InternalPacket,
+) -> Result<reqwest::Response, reqwest::Error> {
+    match internal_coms_packet.method {
+        Method::Get => {
+            rate_limited_get_endpoint(
+                read_rate_limiter.clone(),
+                internal_coms_packet.endpoint.clone(),
+                &internal_coms_packet.query_params,
+            )
+            .await
+        }
+        Method::Post => {
+            rate_limited_post_endpoint(
+                write_rate_limiter.clone(),
+                internal_coms_packet.endpoint.clone(),
+                &internal_coms_packet.query_params,
+                internal_coms_packet.data.clone(),
+            )
+            .await
+        }
+    }
+}
+
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct MarketHandler {
@@ -140,6 +166,20 @@ impl MarketHandler {
         }
     }
 
+    pub fn send_to_bots(
+        bot_out_channel: &Arc<Mutex<HashMap<String, broadcast::Sender<InternalPacket>>>>,
+        bot_id: &String,
+        packet: InternalPacket,
+    ) {
+        bot_out_channel
+            .lock()
+            .unwrap()
+            .get(bot_id)
+            .unwrap()
+            .send(packet)
+            .expect("couldn't send internal_coms packet");
+    }
+
     async fn handle_bot_messages(
         write_rate_limiter: rate_limiter::RateLimiter,
         read_rate_limiter: rate_limiter::RateLimiter,
@@ -156,25 +196,12 @@ impl MarketHandler {
 
             debug!("got internal_coms packet {:?}", internal_coms_packet);
 
-            let maybe_res = match internal_coms_packet.method {
-                Method::Get => {
-                    rate_limited_get_endpoint(
-                        read_rate_limiter.clone(),
-                        internal_coms_packet.endpoint.clone(),
-                        &internal_coms_packet.query_params,
-                    )
-                    .await
-                }
-                Method::Post => {
-                    rate_limited_post_endpoint(
-                        write_rate_limiter.clone(),
-                        internal_coms_packet.endpoint.clone(),
-                        &internal_coms_packet.query_params,
-                        internal_coms_packet.data.clone(),
-                    )
-                    .await
-                }
-            };
+            let maybe_res = handle_internal_coms(
+                &read_rate_limiter,
+                &write_rate_limiter,
+                &internal_coms_packet,
+            )
+            .await;
 
             let res = match maybe_res {
                 Ok(res) => res,
@@ -185,13 +212,7 @@ impl MarketHandler {
                         format!("api error {e}"),
                     );
 
-                    bot_out_channel
-                        .lock()
-                        .unwrap()
-                        .get(&internal_coms_packet.bot_id)
-                        .unwrap()
-                        .send(packet)
-                        .expect("couldn't send internal_coms packet");
+                    Self::send_to_bots(&bot_out_channel, &internal_coms_packet.bot_id, packet);
 
                     continue;
                 }
@@ -200,23 +221,8 @@ impl MarketHandler {
             .await
             .unwrap();
 
-            let bot_id = internal_coms_packet.bot_id;
-            let packet = InternalPacket {
-                bot_id: bot_id.clone(),
-                method: internal_coms_packet.method,
-                endpoint: internal_coms_packet.endpoint,
-                query_params: internal_coms_packet.query_params,
-                data: None,
-                response: Some(res),
-            };
-
-            bot_out_channel
-                .lock()
-                .unwrap()
-                .get(&bot_id)
-                .unwrap()
-                .send(packet)
-                .expect("couldn't send internal_coms packet");
+            let packet = InternalPacket::response_from_existing(&internal_coms_packet, res);
+            Self::send_to_bots(&bot_out_channel, &internal_coms_packet.bot_id, packet);
         }
     }
 
