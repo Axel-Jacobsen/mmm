@@ -92,7 +92,7 @@ async fn rate_limited_get_endpoint(
     }
 }
 
-pub async fn handle_internal_coms(
+pub async fn send_internal_packet(
     read_rate_limiter: &rate_limiter::RateLimiter,
     write_rate_limiter: &rate_limiter::RateLimiter,
     internal_coms_packet: &InternalPacket,
@@ -196,7 +196,7 @@ impl MarketHandler {
 
             debug!("got internal_coms packet {:?}", internal_coms_packet);
 
-            let maybe_res = handle_internal_coms(
+            let maybe_res = send_internal_packet(
                 &read_rate_limiter,
                 &write_rate_limiter,
                 &internal_coms_packet,
