@@ -14,7 +14,6 @@ use crate::errors;
 use crate::manifold_types;
 use crate::rate_limiter;
 
-#[derive(Debug)]
 pub struct MarketHandler {
     halt_flag: Arc<AtomicBool>,
 
