@@ -79,7 +79,6 @@ async fn run() {
     );
     let mut ewma_bot = EWMABot::new(
         "ewma_bawt".to_string(),
-        sudoku_market.clone(),
         bot_to_mh_tx.clone(),
         ewma_rx_bot,
         0.4,

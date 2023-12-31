@@ -21,15 +21,10 @@ impl EWMA {
         self.s0 = self.alpha * x + (1.0 - self.alpha) * self.s0;
         self.s0
     }
-
-    fn get(&self) -> f64 {
-        self.s0
-    }
 }
 
 pub struct EWMABot {
     id: String,
-    market: manifold_types::FullMarket,
 
     bot_to_mh_tx: mpsc::Sender<InternalPacket>,
     mh_to_bot_rx: broadcast::Receiver<InternalPacket>,
@@ -45,7 +40,6 @@ pub struct EWMABot {
 impl EWMABot {
     pub fn new(
         id: String,
-        market: manifold_types::FullMarket,
         bot_to_mh_tx: mpsc::Sender<InternalPacket>,
         mh_to_bot_rx: broadcast::Receiver<InternalPacket>,
         alpha_1: f64,
@@ -56,7 +50,6 @@ impl EWMABot {
 
         Self {
             id,
-            market,
             bot_to_mh_tx,
             mh_to_bot_rx,
             ewma_1,
