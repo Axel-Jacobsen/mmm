@@ -7,6 +7,7 @@ mod bots;
 mod cli;
 mod coms;
 mod errors;
+mod internal_packet;
 mod manifold_types;
 mod market_handler;
 mod rate_limiter;

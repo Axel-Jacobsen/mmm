@@ -11,19 +11,20 @@ use tokio::time::{sleep, Duration};
 
 use crate::coms;
 use crate::errors;
-use crate::manifold_types;
-use crate::rate_limiter;
+use crate::internal_packet as ip;
+use crate::manifold_types as mt;
+use crate::rate_limiter as rl;
 
 pub struct MarketHandler {
     halt_flag: Arc<AtomicBool>,
 
-    bots_to_mh_tx: mpsc::Sender<coms::InternalPacket>,
-    bot_out_channel: Arc<Mutex<HashMap<String, broadcast::Sender<coms::InternalPacket>>>>,
+    bots_to_mh_tx: mpsc::Sender<ip::InternalPacket>,
+    bot_out_channel: Arc<Mutex<HashMap<String, broadcast::Sender<ip::InternalPacket>>>>,
 
-    read_rate_limiter: rate_limiter::RateLimiter,
-    write_rate_limiter: rate_limiter::RateLimiter,
+    read_rate_limiter: rl::RateLimiter,
+    write_rate_limiter: rl::RateLimiter,
 
-    bet_channels: HashMap<String, broadcast::Sender<manifold_types::Bet>>,
+    bet_channels: HashMap<String, broadcast::Sender<mt::Bet>>,
 }
 
 #[allow(dead_code)]
@@ -31,16 +32,16 @@ impl MarketHandler {
     pub fn new() -> Self {
         let halt_flag = Arc::new(AtomicBool::new(false));
 
-        let (bots_to_mh_tx, bots_to_mh_rx) = mpsc::channel::<coms::InternalPacket>(256);
-        let bot_out_channel: Arc<Mutex<HashMap<String, broadcast::Sender<coms::InternalPacket>>>> =
+        let (bots_to_mh_tx, bots_to_mh_rx) = mpsc::channel::<ip::InternalPacket>(256);
+        let bot_out_channel: Arc<Mutex<HashMap<String, broadcast::Sender<ip::InternalPacket>>>> =
             Arc::new(Mutex::new(HashMap::new()));
 
         let halt_flag_clone = halt_flag.clone();
         let bot_out_channel_clone = bot_out_channel.clone();
 
         // set the rate limits slightly lower than the true value
-        let read_rate_limiter = rate_limiter::RateLimiter::new(90, Duration::from_secs(1));
-        let write_rate_limiter = rate_limiter::RateLimiter::new(9, Duration::from_secs(60));
+        let read_rate_limiter = rl::RateLimiter::new(90, Duration::from_secs(1));
+        let write_rate_limiter = rl::RateLimiter::new(9, Duration::from_secs(60));
 
         tokio::spawn(Self::handle_bot_messages(
             write_rate_limiter.clone(),
@@ -61,9 +62,9 @@ impl MarketHandler {
     }
 
     pub fn send_to_bots(
-        bot_out_channel: &Arc<Mutex<HashMap<String, broadcast::Sender<coms::InternalPacket>>>>,
+        bot_out_channel: &Arc<Mutex<HashMap<String, broadcast::Sender<ip::InternalPacket>>>>,
         bot_id: &String,
-        packet: coms::InternalPacket,
+        packet: ip::InternalPacket,
     ) {
         bot_out_channel
             .lock()
@@ -75,11 +76,11 @@ impl MarketHandler {
     }
 
     async fn handle_bot_messages(
-        write_rate_limiter: rate_limiter::RateLimiter,
-        read_rate_limiter: rate_limiter::RateLimiter,
+        write_rate_limiter: rl::RateLimiter,
+        read_rate_limiter: rl::RateLimiter,
         halt_flag: Arc<AtomicBool>,
-        mut bots_to_mh_rx: mpsc::Receiver<coms::InternalPacket>,
-        bot_out_channel: Arc<Mutex<HashMap<String, broadcast::Sender<coms::InternalPacket>>>>,
+        mut bots_to_mh_rx: mpsc::Receiver<ip::InternalPacket>,
+        bot_out_channel: Arc<Mutex<HashMap<String, broadcast::Sender<ip::InternalPacket>>>>,
     ) {
         while !halt_flag.load(Ordering::SeqCst) {
             let internal_coms_packet = match bots_to_mh_rx.recv().await {
@@ -100,7 +101,7 @@ impl MarketHandler {
                 Ok(res) => res,
                 Err(e) => {
                     error!("api error {e}");
-                    let packet = coms::InternalPacket::response_from_existing(
+                    let packet = ip::InternalPacket::response_from_existing(
                         &internal_coms_packet,
                         format!("api error {e}"),
                     );
@@ -114,7 +115,7 @@ impl MarketHandler {
             .await
             .unwrap();
 
-            let packet = coms::InternalPacket::response_from_existing(&internal_coms_packet, res);
+            let packet = ip::InternalPacket::response_from_existing(&internal_coms_packet, res);
             Self::send_to_bots(&bot_out_channel, &internal_coms_packet.bot_id, packet);
         }
     }
@@ -129,21 +130,21 @@ impl MarketHandler {
                 .await
                 .unwrap();
 
-        resp.json::<manifold_types::User>().await.is_ok()
+        resp.json::<mt::User>().await.is_ok()
     }
 
-    pub async fn whoami(&self) -> Result<manifold_types::User, reqwest::Error> {
+    pub async fn whoami(&self) -> Result<mt::User, reqwest::Error> {
         let resp =
             coms::rate_limited_get_endpoint(self.read_rate_limiter.clone(), "me".to_string(), &[])
                 .await
                 .unwrap();
 
-        resp.json::<manifold_types::User>().await
+        resp.json::<mt::User>().await
     }
 
     pub async fn get_all_my_positions(
         &self,
-    ) -> Result<Vec<manifold_types::Bet>, errors::ReqwestResponseParsing> {
+    ) -> Result<Vec<mt::Bet>, errors::ReqwestResponseParsing> {
         let me = match self.whoami().await {
             Ok(me) => me,
             Err(e) => {
@@ -153,7 +154,7 @@ impl MarketHandler {
         };
 
         let mut bet_before_id: String = "".to_string();
-        let mut all_bets: Vec<manifold_types::Bet> = vec![];
+        let mut all_bets: Vec<mt::Bet> = vec![];
 
         loop {
             let params = [
@@ -170,7 +171,7 @@ impl MarketHandler {
             .await;
 
             let bets = match bets_response {
-                Ok(bets_response) => bets_response.json::<Vec<manifold_types::Bet>>().await?,
+                Ok(bets_response) => bets_response.json::<Vec<mt::Bet>>().await?,
                 Err(e) => {
                     error!("couldn't get bets: {e}");
                     return Err(format!("couldn't get bets: {e}").into());
@@ -189,9 +190,7 @@ impl MarketHandler {
         Ok(all_bets)
     }
 
-    pub async fn get_active_positions(
-        all_bets: Vec<manifold_types::Bet>,
-    ) -> Vec<manifold_types::Position> {
+    pub async fn get_active_positions(all_bets: Vec<mt::Bet>) -> Vec<mt::Position> {
         #[derive(Hash, Eq, PartialEq)]
         struct PositionKey {
             outcome: String,
@@ -213,13 +212,13 @@ impl MarketHandler {
         all_positions
             .into_iter()
             .filter(|(_, total_amount_sum)| *total_amount_sum > 1e-10)
-            .map(|(position, total_amount_sum)| manifold_types::Position {
+            .map(|(position, total_amount_sum)| mt::Position {
                 outcome: position.outcome,
                 contract_id: position.contract_id,
                 answer_id: position.answer_id,
                 amount: total_amount_sum,
             })
-            .collect::<Vec<manifold_types::Position>>()
+            .collect::<Vec<mt::Position>>()
     }
 
     pub async fn liquidate_all_positions(&self) -> Result<(), errors::ReqwestResponseParsing> {
@@ -260,7 +259,7 @@ impl MarketHandler {
     pub async fn market_search(
         &self,
         term: String,
-    ) -> Result<manifold_types::FullMarket, errors::ReqwestResponseParsing> {
+    ) -> Result<mt::FullMarket, errors::ReqwestResponseParsing> {
         let resp = coms::rate_limited_get_endpoint(
             self.read_rate_limiter.clone(),
             "search-markets".to_string(),
@@ -272,7 +271,7 @@ impl MarketHandler {
         .await
         .unwrap();
 
-        let lite_market_req = coms::response_into::<Vec<manifold_types::LiteMarket>>(resp).await;
+        let lite_market_req = coms::response_into::<Vec<mt::LiteMarket>>(resp).await;
         let lite_market = match lite_market_req {
             Ok(mut markets) => {
                 if markets.len() == 1 {
@@ -296,7 +295,7 @@ impl MarketHandler {
         .await
         .unwrap();
 
-        coms::response_into::<manifold_types::FullMarket>(full_market).await
+        coms::response_into::<mt::FullMarket>(full_market).await
     }
 
     /// Initializes a tx, rx pair for the bot. The tx channel is used by the
@@ -308,8 +307,8 @@ impl MarketHandler {
         bot_id: String,
     ) -> Result<
         (
-            mpsc::Sender<coms::InternalPacket>,
-            broadcast::Receiver<coms::InternalPacket>,
+            mpsc::Sender<ip::InternalPacket>,
+            broadcast::Receiver<ip::InternalPacket>,
         ),
         String,
     > {
@@ -320,7 +319,7 @@ impl MarketHandler {
 
         let bot_to_mh_tx = self.bots_to_mh_tx.clone();
 
-        let (tx_bot, rx_bot) = broadcast::channel::<coms::InternalPacket>(4);
+        let (tx_bot, rx_bot) = broadcast::channel::<ip::InternalPacket>(4);
         self.bot_out_channel.lock().unwrap().insert(bot_id, tx_bot);
 
         Ok((bot_to_mh_tx, rx_bot))
@@ -329,7 +328,7 @@ impl MarketHandler {
     pub async fn get_bet_stream_for_market_id(
         &mut self,
         market_id: String,
-    ) -> broadcast::Receiver<manifold_types::Bet> {
+    ) -> broadcast::Receiver<mt::Bet> {
         self.get_bet_stream(
             market_id.clone(),
             vec![("contractId".to_string(), market_id)],
@@ -341,7 +340,7 @@ impl MarketHandler {
         &mut self,
         stream_key: String,
         query_params: Vec<(String, String)>,
-    ) -> broadcast::Receiver<manifold_types::Bet> {
+    ) -> broadcast::Receiver<mt::Bet> {
         info!(
             "Getting bet stream for {stream_key} params {:?}",
             query_params
@@ -350,7 +349,7 @@ impl MarketHandler {
         let rx = if self.bet_channels.contains_key(&stream_key) {
             self.bet_channels[&stream_key].subscribe()
         } else {
-            let (tx, rx) = broadcast::channel::<manifold_types::Bet>(128);
+            let (tx, rx) = broadcast::channel::<mt::Bet>(128);
             self.bet_channels
                 .entry(stream_key.to_string())
                 .or_insert(tx);
@@ -368,7 +367,7 @@ impl MarketHandler {
         .await
         .expect("Couldn't get most recent bet from api");
 
-        let mut most_recent_id = coms::response_into::<Vec<manifold_types::Bet>>(response)
+        let mut most_recent_id = coms::response_into::<Vec<mt::Bet>>(response)
             .await
             .expect("Couldn't convert json into Bet")
             .pop()
@@ -409,7 +408,7 @@ impl MarketHandler {
                     }
                 };
 
-                let bets = coms::response_into::<Vec<manifold_types::Bet>>(resp)
+                let bets = coms::response_into::<Vec<mt::Bet>>(resp)
                     .await
                     .expect("Couldn't convert json into Bet");
 

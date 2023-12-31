@@ -1,7 +1,7 @@
 use std::env;
 
 use log::{debug, error};
-use serde::{Deserialize, Serialize};
+
 use serde_json::Value;
 
 use tokio::time::Duration;
@@ -9,6 +9,7 @@ use tokio::time::Duration;
 use crate::rate_limiter;
 
 use crate::errors;
+use crate::internal_packet as ip;
 
 const MANIFOLD_API_URL: &str = "https://api.manifold.markets/v0";
 
@@ -16,52 +17,6 @@ fn get_env_key(key: &str) -> Result<String, String> {
     match env::var(key) {
         Ok(key) => Ok(format!("Key {key}")),
         Err(e) => Err(format!("couldn't find Manifold API key: {e}")),
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum Method {
-    Get,
-    Post,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct InternalPacket {
-    pub bot_id: String,
-    method: Method,
-    endpoint: String,
-    query_params: Vec<(String, String)>,
-    data: Option<Value>,
-    response: Option<String>,
-}
-
-impl InternalPacket {
-    pub fn new(
-        bot_id: String,
-        method: Method,
-        endpoint: String,
-        query_params: Vec<(String, String)>,
-        data: Option<Value>,
-    ) -> Self {
-        Self {
-            bot_id,
-            method,
-            endpoint,
-            query_params,
-            data,
-            response: None,
-        }
-    }
-
-    pub fn response_from_existing(packet: &InternalPacket, response: String) -> Self {
-        Self {
-            bot_id: packet.bot_id.clone(),
-            method: packet.method.clone(),
-            endpoint: packet.endpoint.clone(),
-            query_params: packet.query_params.clone(),
-            data: packet.data.clone(),
-            response: Some(response),
-        }
     }
 }
 
@@ -172,10 +127,10 @@ pub async fn rate_limited_get_endpoint(
 pub async fn send_internal_packet(
     read_rate_limiter: &rate_limiter::RateLimiter,
     write_rate_limiter: &rate_limiter::RateLimiter,
-    internal_coms_packet: &InternalPacket,
+    internal_coms_packet: &ip::InternalPacket,
 ) -> Result<reqwest::Response, reqwest::Error> {
     match internal_coms_packet.method {
-        Method::Get => {
+        ip::Method::Get => {
             rate_limited_get_endpoint(
                 read_rate_limiter.clone(),
                 internal_coms_packet.endpoint.clone(),
@@ -183,7 +138,7 @@ pub async fn send_internal_packet(
             )
             .await
         }
-        Method::Post => {
+        ip::Method::Post => {
             rate_limited_post_endpoint(
                 write_rate_limiter.clone(),
                 internal_coms_packet.endpoint.clone(),
