@@ -5,7 +5,7 @@ use tokio::sync::{broadcast, mpsc};
 use crate::bots::Bot;
 use crate::manifold_types;
 
-use crate::coms::{Method,InternalPacket};
+use crate::coms::{InternalPacket, Method};
 
 struct EWMA {
     s0: f64,

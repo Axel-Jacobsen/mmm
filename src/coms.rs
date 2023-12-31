@@ -1,17 +1,12 @@
 use std::env;
 
-
-
-
 use log::{debug, error};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use tokio::time::{Duration};
-
+use tokio::time::Duration;
 
 use crate::rate_limiter;
-
 
 use crate::errors;
 
@@ -142,7 +137,6 @@ pub async fn response_into<T: serde::de::DeserializeOwned>(
         }
     }
 }
-
 
 pub async fn rate_limited_post_endpoint(
     mut write_rate_limiter: rate_limiter::RateLimiter,

@@ -6,15 +6,13 @@ use std::sync::{
 
 use log::{debug, error, info, warn};
 
-
 use tokio::sync::{broadcast, mpsc};
 use tokio::time::{sleep, Duration};
 
+use crate::coms;
 use crate::errors;
 use crate::manifold_types;
 use crate::rate_limiter;
-use crate::coms;
-
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -128,17 +126,19 @@ impl MarketHandler {
     }
 
     pub async fn check_alive(&self) -> bool {
-        let resp = coms::rate_limited_get_endpoint(self.read_rate_limiter.clone(), "me".to_string(), &[])
-            .await
-            .unwrap();
+        let resp =
+            coms::rate_limited_get_endpoint(self.read_rate_limiter.clone(), "me".to_string(), &[])
+                .await
+                .unwrap();
 
         resp.json::<manifold_types::User>().await.is_ok()
     }
 
     pub async fn whoami(&self) -> Result<manifold_types::User, reqwest::Error> {
-        let resp = coms::rate_limited_get_endpoint(self.read_rate_limiter.clone(), "me".to_string(), &[])
-            .await
-            .unwrap();
+        let resp =
+            coms::rate_limited_get_endpoint(self.read_rate_limiter.clone(), "me".to_string(), &[])
+                .await
+                .unwrap();
 
         resp.json::<manifold_types::User>().await
     }

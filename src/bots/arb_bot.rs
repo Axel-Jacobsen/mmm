@@ -7,7 +7,7 @@ use tokio::sync::{broadcast, mpsc};
 use crate::bots::Bot;
 use crate::manifold_types;
 
-use crate::coms::{InternalPacket,Method};
+use crate::coms::{InternalPacket, Method};
 
 pub struct ArbitrageBot {
     id: String,
@@ -90,10 +90,7 @@ impl ArbitrageBot {
         }
     }
 
-    fn botbet_to_internal_coms_packet(
-        &self,
-        bet: manifold_types::BotBet,
-    ) -> InternalPacket {
+    fn botbet_to_internal_coms_packet(&self, bet: manifold_types::BotBet) -> InternalPacket {
         InternalPacket::new(
             self.get_id(),
             Method::Post,

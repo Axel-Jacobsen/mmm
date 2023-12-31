@@ -5,11 +5,11 @@ use crate::cli::{Args, Commands};
 
 mod bots;
 mod cli;
+mod coms;
 mod errors;
 mod manifold_types;
 mod market_handler;
 mod rate_limiter;
-mod coms;
 
 use crate::bots::arb_bot::ArbitrageBot;
 use crate::bots::ewma_bot::EWMABot;
