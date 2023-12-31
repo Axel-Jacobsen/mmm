@@ -64,12 +64,8 @@ impl EWMABot {
             self.bot_to_mh_tx.send(trade).await.unwrap();
 
             match self.mh_to_bot_rx.recv().await {
-                Ok(resp) => {
-                    info!("made bet {:?}", resp);
-                }
-                Err(e) => {
-                    error!("mh_to_bot_rx gave error {e}");
-                }
+                Ok(resp) => info!("made bet {:?}", resp),
+                Err(e) => error!("mh_to_bot_rx gave error {e}"),
             }
         }
     }
