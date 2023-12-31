@@ -6,22 +6,23 @@ use tokio::sync::{broadcast, mpsc};
 
 use crate::bots::Bot;
 use crate::manifold_types;
-use crate::market_handler;
+
+use crate::coms::{InternalPacket, Method};
 
 pub struct ArbitrageBot {
     id: String,
     market: manifold_types::FullMarket,
     answers: HashMap<String, manifold_types::Answer>,
-    bot_to_mh_tx: mpsc::Sender<market_handler::InternalPacket>,
-    mh_to_bot_rx: broadcast::Receiver<market_handler::InternalPacket>,
+    bot_to_mh_tx: mpsc::Sender<InternalPacket>,
+    mh_to_bot_rx: broadcast::Receiver<InternalPacket>,
 }
 
 impl ArbitrageBot {
     pub fn new(
         id: String,
         market: manifold_types::FullMarket,
-        bot_to_mh_tx: mpsc::Sender<market_handler::InternalPacket>,
-        mh_to_bot_rx: broadcast::Receiver<market_handler::InternalPacket>,
+        bot_to_mh_tx: mpsc::Sender<InternalPacket>,
+        mh_to_bot_rx: broadcast::Receiver<InternalPacket>,
     ) -> Self {
         let mut id_to_answers = HashMap::new();
 
@@ -60,10 +61,11 @@ impl ArbitrageBot {
 
         for answer in self.answers.values() {
             bets.push(manifold_types::BotBet {
-                amount: 500. * (1. / answer.probability) / inverse_sum,
+                amount: Some(500. * (1. / answer.probability) / inverse_sum),
                 contract_id: self.market.lite_market.id.clone(),
                 outcome: manifold_types::MarketOutcome::Yes,
                 answer_id: Some(answer.id.clone()),
+                side: manifold_types::Side::Buy,
             });
         }
 
@@ -86,6 +88,21 @@ impl ArbitrageBot {
                 }
             }
         }
+    }
+
+    fn botbet_to_internal_coms_packet(&self, bet: manifold_types::BotBet) -> InternalPacket {
+        InternalPacket::new(
+            self.get_id(),
+            Method::Post,
+            "bet".to_string(),
+            vec![],
+            Some(serde_json::json!({
+                "amount": bet.amount,
+                "contractId": bet.contract_id,
+                "outcome": bet.outcome,
+                "answerId": bet.answer_id
+            })),
+        )
     }
 }
 
@@ -144,25 +161,6 @@ impl Bot for ArbitrageBot {
 
             i += 1;
         }
-    }
-
-    fn botbet_to_internal_coms_packet(
-        &self,
-        bet: manifold_types::BotBet,
-    ) -> market_handler::InternalPacket {
-        market_handler::InternalPacket::new(
-            self.get_id(),
-            market_handler::Method::Post,
-            "bet".to_string(),
-            vec![],
-            Some(serde_json::json!({
-                "amount": bet.amount,
-                "contractId": bet.contract_id,
-                "outcome": bet.outcome,
-                "answerId": bet.answer_id
-            })),
-            None,
-        )
     }
 
     fn get_id(&self) -> String {
