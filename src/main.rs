@@ -9,7 +9,7 @@ mod errors;
 mod manifold_types;
 mod market_handler;
 mod rate_limiter;
-mod utils;
+mod coms;
 
 use crate::bots::arb_bot::ArbitrageBot;
 use crate::bots::ewma_bot::EWMABot;

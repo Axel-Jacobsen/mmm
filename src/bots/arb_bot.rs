@@ -6,22 +6,23 @@ use tokio::sync::{broadcast, mpsc};
 
 use crate::bots::Bot;
 use crate::manifold_types;
-use crate::market_handler;
+
+use crate::coms::{InternalPacket,Method};
 
 pub struct ArbitrageBot {
     id: String,
     market: manifold_types::FullMarket,
     answers: HashMap<String, manifold_types::Answer>,
-    bot_to_mh_tx: mpsc::Sender<market_handler::InternalPacket>,
-    mh_to_bot_rx: broadcast::Receiver<market_handler::InternalPacket>,
+    bot_to_mh_tx: mpsc::Sender<InternalPacket>,
+    mh_to_bot_rx: broadcast::Receiver<InternalPacket>,
 }
 
 impl ArbitrageBot {
     pub fn new(
         id: String,
         market: manifold_types::FullMarket,
-        bot_to_mh_tx: mpsc::Sender<market_handler::InternalPacket>,
-        mh_to_bot_rx: broadcast::Receiver<market_handler::InternalPacket>,
+        bot_to_mh_tx: mpsc::Sender<InternalPacket>,
+        mh_to_bot_rx: broadcast::Receiver<InternalPacket>,
     ) -> Self {
         let mut id_to_answers = HashMap::new();
 
@@ -92,10 +93,10 @@ impl ArbitrageBot {
     fn botbet_to_internal_coms_packet(
         &self,
         bet: manifold_types::BotBet,
-    ) -> market_handler::InternalPacket {
-        market_handler::InternalPacket::new(
+    ) -> InternalPacket {
+        InternalPacket::new(
             self.get_id(),
-            market_handler::Method::Post,
+            Method::Post,
             "bet".to_string(),
             vec![],
             Some(serde_json::json!({

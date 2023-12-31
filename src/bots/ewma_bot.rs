@@ -4,7 +4,8 @@ use tokio::sync::{broadcast, mpsc};
 
 use crate::bots::Bot;
 use crate::manifold_types;
-use crate::market_handler;
+
+use crate::coms::{Method,InternalPacket};
 
 struct EWMA {
     s0: f64,
@@ -30,8 +31,8 @@ pub struct EWMABot {
     id: String,
     market: manifold_types::FullMarket,
 
-    bot_to_mh_tx: mpsc::Sender<market_handler::InternalPacket>,
-    mh_to_bot_rx: broadcast::Receiver<market_handler::InternalPacket>,
+    bot_to_mh_tx: mpsc::Sender<InternalPacket>,
+    mh_to_bot_rx: broadcast::Receiver<InternalPacket>,
 
     ewma_1: EWMA,
     ewma_2: EWMA,
@@ -45,8 +46,8 @@ impl EWMABot {
     pub fn new(
         id: String,
         market: manifold_types::FullMarket,
-        bot_to_mh_tx: mpsc::Sender<market_handler::InternalPacket>,
-        mh_to_bot_rx: broadcast::Receiver<market_handler::InternalPacket>,
+        bot_to_mh_tx: mpsc::Sender<InternalPacket>,
+        mh_to_bot_rx: broadcast::Receiver<InternalPacket>,
         alpha_1: f64,
         alpha_2: f64,
     ) -> Self {
@@ -65,7 +66,7 @@ impl EWMABot {
         }
     }
 
-    async fn make_trades(&mut self, trades: Vec<market_handler::InternalPacket>) {
+    async fn make_trades(&mut self, trades: Vec<InternalPacket>) {
         for trade in trades {
             self.bot_to_mh_tx.send(trade).await.unwrap();
 
@@ -124,9 +125,9 @@ impl Bot for EWMABot {
 
             match self.update_prob(&bet) {
                 manifold_types::Side::Buy => {
-                    let buy_bet = market_handler::InternalPacket::new(
+                    let buy_bet = InternalPacket::new(
                         self.get_id(),
-                        market_handler::Method::Post,
+                        Method::Post,
                         "bet".to_string(),
                         vec![],
                         Some(serde_json::json!({
@@ -139,9 +140,9 @@ impl Bot for EWMABot {
                     self.make_trades(vec![buy_bet]).await;
                 }
                 manifold_types::Side::Sell => {
-                    let sell_bet = market_handler::InternalPacket::new(
+                    let sell_bet = InternalPacket::new(
                         self.get_id(),
-                        market_handler::Method::Post,
+                        Method::Post,
                         format!("market/{}/sell", bet.contract_id),
                         vec![],
                         Some(serde_json::json!({

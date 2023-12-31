@@ -5,126 +5,24 @@ use std::sync::{
 };
 
 use log::{debug, error, info, warn};
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
+
+
 use tokio::sync::{broadcast, mpsc};
 use tokio::time::{sleep, Duration};
 
 use crate::errors;
 use crate::manifold_types;
 use crate::rate_limiter;
-use crate::utils;
+use crate::coms;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum Method {
-    Get,
-    Post,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct InternalPacket {
-    bot_id: String,
-    method: Method,
-    endpoint: String,
-    query_params: Vec<(String, String)>,
-    data: Option<Value>,
-    response: Option<String>,
-}
-
-impl InternalPacket {
-    pub fn new(
-        bot_id: String,
-        method: Method,
-        endpoint: String,
-        query_params: Vec<(String, String)>,
-        data: Option<Value>,
-    ) -> Self {
-        Self {
-            bot_id,
-            method,
-            endpoint,
-            query_params,
-            data,
-            response: None,
-        }
-    }
-
-    pub fn response_from_existing(packet: &InternalPacket, response: String) -> Self {
-        Self {
-            bot_id: packet.bot_id.clone(),
-            method: packet.method.clone(),
-            endpoint: packet.endpoint.clone(),
-            query_params: packet.query_params.clone(),
-            data: packet.data.clone(),
-            response: Some(response),
-        }
-    }
-}
-
-async fn rate_limited_post_endpoint(
-    mut write_rate_limiter: rate_limiter::RateLimiter,
-    endpoint: String,
-    query_params: &[(String, String)],
-    data: Option<Value>,
-) -> Result<reqwest::Response, reqwest::Error> {
-    if write_rate_limiter.block_for_average_pace_then_commit(Duration::from_secs(60)) {
-        utils::post_endpoint(endpoint, query_params, data).await
-    } else {
-        panic!(
-            "rate limiter timed out; this shouldn't be possible, \
-            most likely rate limit is set wrong"
-        );
-    }
-}
-
-async fn rate_limited_get_endpoint(
-    mut read_rate_limiter: rate_limiter::RateLimiter,
-    endpoint: String,
-    query_params: &[(String, String)],
-) -> Result<reqwest::Response, reqwest::Error> {
-    if read_rate_limiter.block_for_average_pace_then_commit(Duration::from_secs(1)) {
-        utils::get_endpoint(endpoint, query_params).await
-    } else {
-        panic!(
-            "rate limiter timed out; this shouldn't be possible, \
-            most likely rate limit is set wrong"
-        );
-    }
-}
-
-pub async fn send_internal_packet(
-    read_rate_limiter: &rate_limiter::RateLimiter,
-    write_rate_limiter: &rate_limiter::RateLimiter,
-    internal_coms_packet: &InternalPacket,
-) -> Result<reqwest::Response, reqwest::Error> {
-    match internal_coms_packet.method {
-        Method::Get => {
-            rate_limited_get_endpoint(
-                read_rate_limiter.clone(),
-                internal_coms_packet.endpoint.clone(),
-                &internal_coms_packet.query_params,
-            )
-            .await
-        }
-        Method::Post => {
-            rate_limited_post_endpoint(
-                write_rate_limiter.clone(),
-                internal_coms_packet.endpoint.clone(),
-                &internal_coms_packet.query_params,
-                internal_coms_packet.data.clone(),
-            )
-            .await
-        }
-    }
-}
 
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct MarketHandler {
     halt_flag: Arc<AtomicBool>,
 
-    bots_to_mh_tx: mpsc::Sender<InternalPacket>,
-    bot_out_channel: Arc<Mutex<HashMap<String, broadcast::Sender<InternalPacket>>>>,
+    bots_to_mh_tx: mpsc::Sender<coms::InternalPacket>,
+    bot_out_channel: Arc<Mutex<HashMap<String, broadcast::Sender<coms::InternalPacket>>>>,
 
     read_rate_limiter: rate_limiter::RateLimiter,
     write_rate_limiter: rate_limiter::RateLimiter,
@@ -137,8 +35,8 @@ impl MarketHandler {
     pub fn new() -> Self {
         let halt_flag = Arc::new(AtomicBool::new(false));
 
-        let (bots_to_mh_tx, bots_to_mh_rx) = mpsc::channel::<InternalPacket>(256);
-        let bot_out_channel: Arc<Mutex<HashMap<String, broadcast::Sender<InternalPacket>>>> =
+        let (bots_to_mh_tx, bots_to_mh_rx) = mpsc::channel::<coms::InternalPacket>(256);
+        let bot_out_channel: Arc<Mutex<HashMap<String, broadcast::Sender<coms::InternalPacket>>>> =
             Arc::new(Mutex::new(HashMap::new()));
 
         let halt_flag_clone = halt_flag.clone();
@@ -167,9 +65,9 @@ impl MarketHandler {
     }
 
     pub fn send_to_bots(
-        bot_out_channel: &Arc<Mutex<HashMap<String, broadcast::Sender<InternalPacket>>>>,
+        bot_out_channel: &Arc<Mutex<HashMap<String, broadcast::Sender<coms::InternalPacket>>>>,
         bot_id: &String,
-        packet: InternalPacket,
+        packet: coms::InternalPacket,
     ) {
         bot_out_channel
             .lock()
@@ -184,8 +82,8 @@ impl MarketHandler {
         write_rate_limiter: rate_limiter::RateLimiter,
         read_rate_limiter: rate_limiter::RateLimiter,
         halt_flag: Arc<AtomicBool>,
-        mut bots_to_mh_rx: mpsc::Receiver<InternalPacket>,
-        bot_out_channel: Arc<Mutex<HashMap<String, broadcast::Sender<InternalPacket>>>>,
+        mut bots_to_mh_rx: mpsc::Receiver<coms::InternalPacket>,
+        bot_out_channel: Arc<Mutex<HashMap<String, broadcast::Sender<coms::InternalPacket>>>>,
     ) {
         while !halt_flag.load(Ordering::SeqCst) {
             let internal_coms_packet = match bots_to_mh_rx.recv().await {
@@ -195,7 +93,7 @@ impl MarketHandler {
 
             debug!("got internal_coms packet {:?}", internal_coms_packet);
 
-            let maybe_res = send_internal_packet(
+            let maybe_res = coms::send_internal_packet(
                 &read_rate_limiter,
                 &write_rate_limiter,
                 &internal_coms_packet,
@@ -206,7 +104,7 @@ impl MarketHandler {
                 Ok(res) => res,
                 Err(e) => {
                     error!("api error {e}");
-                    let packet = InternalPacket::response_from_existing(
+                    let packet = coms::InternalPacket::response_from_existing(
                         &internal_coms_packet,
                         format!("api error {e}"),
                     );
@@ -220,7 +118,7 @@ impl MarketHandler {
             .await
             .unwrap();
 
-            let packet = InternalPacket::response_from_existing(&internal_coms_packet, res);
+            let packet = coms::InternalPacket::response_from_existing(&internal_coms_packet, res);
             Self::send_to_bots(&bot_out_channel, &internal_coms_packet.bot_id, packet);
         }
     }
@@ -230,7 +128,7 @@ impl MarketHandler {
     }
 
     pub async fn check_alive(&self) -> bool {
-        let resp = rate_limited_get_endpoint(self.read_rate_limiter.clone(), "me".to_string(), &[])
+        let resp = coms::rate_limited_get_endpoint(self.read_rate_limiter.clone(), "me".to_string(), &[])
             .await
             .unwrap();
 
@@ -238,7 +136,7 @@ impl MarketHandler {
     }
 
     pub async fn whoami(&self) -> Result<manifold_types::User, reqwest::Error> {
-        let resp = rate_limited_get_endpoint(self.read_rate_limiter.clone(), "me".to_string(), &[])
+        let resp = coms::rate_limited_get_endpoint(self.read_rate_limiter.clone(), "me".to_string(), &[])
             .await
             .unwrap();
 
@@ -266,7 +164,7 @@ impl MarketHandler {
                 ("limit".to_string(), "1000".to_string()),
             ];
 
-            let bets_response = rate_limited_get_endpoint(
+            let bets_response = coms::rate_limited_get_endpoint(
                 self.read_rate_limiter.clone(),
                 "bets".to_string(),
                 &params,
@@ -335,7 +233,7 @@ impl MarketHandler {
                 "answerId": pos.answer_id,
             }));
 
-            let sell_response = rate_limited_post_endpoint(
+            let sell_response = coms::rate_limited_post_endpoint(
                 self.write_rate_limiter.clone(),
                 format!("market/{}/sell", pos.contract_id),
                 &[],
@@ -365,7 +263,7 @@ impl MarketHandler {
         &self,
         term: String,
     ) -> Result<manifold_types::FullMarket, errors::ReqwestResponseParsing> {
-        let resp = rate_limited_get_endpoint(
+        let resp = coms::rate_limited_get_endpoint(
             self.read_rate_limiter.clone(),
             "search-markets".to_string(),
             &[
@@ -376,7 +274,7 @@ impl MarketHandler {
         .await
         .unwrap();
 
-        let lite_market_req = utils::response_into::<Vec<manifold_types::LiteMarket>>(resp).await;
+        let lite_market_req = coms::response_into::<Vec<manifold_types::LiteMarket>>(resp).await;
         let lite_market = match lite_market_req {
             Ok(mut markets) => {
                 if markets.len() == 1 {
@@ -392,7 +290,7 @@ impl MarketHandler {
             Err(e) => Err(e),
         }?;
 
-        let full_market = rate_limited_get_endpoint(
+        let full_market = coms::rate_limited_get_endpoint(
             self.read_rate_limiter.clone(),
             format!("market/{}", lite_market.as_ref().unwrap().id),
             &[],
@@ -400,7 +298,7 @@ impl MarketHandler {
         .await
         .unwrap();
 
-        utils::response_into::<manifold_types::FullMarket>(full_market).await
+        coms::response_into::<manifold_types::FullMarket>(full_market).await
     }
 
     /// Initializes a tx, rx pair for the bot. The tx channel is used by the
@@ -412,8 +310,8 @@ impl MarketHandler {
         bot_id: String,
     ) -> Result<
         (
-            mpsc::Sender<InternalPacket>,
-            broadcast::Receiver<InternalPacket>,
+            mpsc::Sender<coms::InternalPacket>,
+            broadcast::Receiver<coms::InternalPacket>,
         ),
         String,
     > {
@@ -424,7 +322,7 @@ impl MarketHandler {
 
         let bot_to_mh_tx = self.bots_to_mh_tx.clone();
 
-        let (tx_bot, rx_bot) = broadcast::channel::<InternalPacket>(4);
+        let (tx_bot, rx_bot) = broadcast::channel::<coms::InternalPacket>(4);
         self.bot_out_channel.lock().unwrap().insert(bot_id, tx_bot);
 
         Ok((bot_to_mh_tx, rx_bot))
@@ -464,7 +362,7 @@ impl MarketHandler {
         let mut base_query = query_params.to_vec();
         base_query.push(("limit".to_string(), "1".to_string()));
 
-        let response = rate_limited_get_endpoint(
+        let response = coms::rate_limited_get_endpoint(
             self.read_rate_limiter.clone(),
             "bets".to_string(),
             &base_query,
@@ -472,7 +370,7 @@ impl MarketHandler {
         .await
         .expect("Couldn't get most recent bet from api");
 
-        let mut most_recent_id = utils::response_into::<Vec<manifold_types::Bet>>(response)
+        let mut most_recent_id = coms::response_into::<Vec<manifold_types::Bet>>(response)
             .await
             .expect("Couldn't convert json into Bet")
             .pop()
@@ -498,7 +396,7 @@ impl MarketHandler {
                     continue;
                 }
 
-                let maybe_resp = rate_limited_get_endpoint(
+                let maybe_resp = coms::rate_limited_get_endpoint(
                     read_rate_limiter_clone.clone(),
                     "bets".to_string(),
                     &params,
@@ -513,7 +411,7 @@ impl MarketHandler {
                     }
                 };
 
-                let bets = utils::response_into::<Vec<manifold_types::Bet>>(resp)
+                let bets = coms::response_into::<Vec<manifold_types::Bet>>(resp)
                     .await
                     .expect("Couldn't convert json into Bet");
 
