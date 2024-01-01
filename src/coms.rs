@@ -57,24 +57,21 @@ pub async fn post_endpoint(
     );
 
     let client = reqwest::Client::new();
-    let req = client
+    let mut req = client
         .post(format!("{MANIFOLD_API_URL}/{endpoint}"))
         .query(&query_params)
         .header("Authorization", get_env_key("MANIFOLD_KEY").unwrap());
 
-    let data_clone = data.clone();
-
-    let resp = if let Some(data) = data {
-        let reqq = req.json(&data);
-        reqq.send().await?
-    } else {
-        req.send().await?
+    if let Some(data) = data {
+        req = req.json(&data);
     };
+
+    let resp = req.send().await?;
 
     if resp.status().is_success() {
         Ok(resp)
     } else {
-        error!("api error (bad status code) {resp:?} {query_params:?} {data_clone:?}");
+        error!("api error (bad status code) {resp:?} {query_params:?}");
         Err(resp.error_for_status().unwrap_err())
     }
 }
