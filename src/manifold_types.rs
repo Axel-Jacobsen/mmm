@@ -473,13 +473,6 @@ pub struct Bet {
     #[serde(rename = "challengeSlug", skip_serializing_if = "Option::is_none")]
     challenge_slug: Option<String>,
 
-    // /// True if this BUY bet has been sold. Optional.
-    // #[serde(default, rename = "isSold")]
-    // pub is_sold: bool,
-    /// This field marks a SELL bet. Optional.
-    #[serde(rename = "sale", skip_serializing_if = "Option::is_none")]
-    sale: Option<Sale>,
-
     /// Optional reply to comment ID
     #[serde(rename = "replyToCommentId", skip_serializing_if = "Option::is_none")]
     reply_to_comment_id: Option<String>,
@@ -527,16 +520,6 @@ impl Display for Position {
             self.contract_id,
         )
     }
-}
-
-/// Represents a sale in a bet
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct Sale {
-    /// Amount user makes from sale
-    amount: f64,
-    /// ID of BUY bet being sold
-    #[serde(rename = "betId")]
-    bet_id: String,
 }
 
 /// NumericBet extends Bet with additional fields
@@ -594,10 +577,6 @@ pub struct Fill {
     shares: f64,
     /// Timestamp of the fill
     timestamp: u64,
-    /// If the fill is a sale, it means the matching bet has shares of the same outcome.
-    /// I.e., -fill.shares === matchedBet.shares. Optional.
-    #[serde(rename = "isSale", skip_serializing_if = "Option::is_none")]
-    is_sale: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

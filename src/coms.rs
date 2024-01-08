@@ -11,7 +11,13 @@ use crate::rate_limiter;
 use crate::errors;
 use crate::internal_packet as ip;
 
-const MANIFOLD_API_URL: &str = "https://api.manifold.markets/v0";
+fn get_api_url() -> String {
+    if env::var("MMM_BACKTEST").is_err() {
+        "https://api.manifold.markets/v0".to_string()
+    } else {
+        "http://127.0.0.1:3030/v0".to_string()
+    }
+}
 
 fn get_env_key(key: &str) -> Result<String, String> {
     match env::var(key) {
@@ -32,7 +38,7 @@ pub async fn get_endpoint(
     let client = reqwest::Client::new();
 
     let req = client
-        .get(format!("{MANIFOLD_API_URL}/{endpoint}"))
+        .get(format!("{}/{endpoint}", get_api_url()))
         .query(&query_params)
         .header("Authorization", get_env_key("MANIFOLD_KEY").unwrap());
 
@@ -58,7 +64,7 @@ pub async fn post_endpoint(
 
     let client = reqwest::Client::new();
     let mut req = client
-        .post(format!("{MANIFOLD_API_URL}/{endpoint}"))
+        .post(format!("{}/{endpoint}", get_api_url()))
         .query(&query_params)
         .header("Authorization", get_env_key("MANIFOLD_KEY").unwrap());
 
